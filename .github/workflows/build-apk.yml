@@ -29,13 +29,31 @@ jobs:
           ANDROID_SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           export ANDROID_HOME="$ANDROID_SDK_DIR"
           export ANDROID_SDK_ROOT="$ANDROID_SDK_DIR"
+          mkdir -p "$ANDROID_SDK_DIR/licenses" 2>/dev/null || sudo mkdir -p "$ANDROID_SDK_DIR/licenses"
+          sudo chmod -R a+rwX "$ANDROID_SDK_DIR" 2>/dev/null || true
+
+          cat <<'EOF' > "$ANDROID_SDK_DIR/licenses/android-sdk-license"
+          8933bad161af4178b1185d1a37fbf41ea5269c55
+          d56f5187479451eabf01fb78af6dfcb131a6481e
+          24333f8a63b6825ea9c5514f83c2829b004d1fee
+          EOF
+          echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_SDK_DIR/licenses/android-googletv-license"
+          echo "ceff83576aac4f7f37cb98fe189e9fb3c49d3b81" > "$ANDROID_SDK_DIR/licenses/android-googlexr-license"
+          echo "859f317696f67ef3d7f30a50a5560e7834b43903" > "$ANDROID_SDK_DIR/licenses/android-sdk-arm-dbt-license"
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_DIR/licenses/android-sdk-preview-license"
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$ANDROID_SDK_DIR/licenses/google-gdk-license"
+          echo "3a7848b1d7366ca5cfa0be477627644ca73f47e3" > "$ANDROID_SDK_DIR/licenses/microxr-sysimage-license"
+          echo "e9acab5b5fbb560a72cfaecce8946896ff6aab9d" > "$ANDROID_SDK_DIR/licenses/mips-android-sysimage-license"
+
           SDKMANAGER="$ANDROID_SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER=$(find "$ANDROID_SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -n 1)
+            SDKMANAGER=$(find "$ANDROID_SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -n 1 || true)
           fi
-          echo "Using sdkmanager: $SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses > /dev/null
-          "$SDKMANAGER" --licenses < /dev/null
+          if [ -n "$SDKMANAGER" ] && [ -x "$SDKMANAGER" ]; then
+            echo "Using sdkmanager: $SDKMANAGER"
+            (yes || true) | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          fi
+          ls -la "$ANDROID_SDK_DIR/licenses"
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
