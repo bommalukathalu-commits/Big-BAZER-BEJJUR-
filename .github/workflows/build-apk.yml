@@ -50,10 +50,8 @@ jobs:
             SDKMANAGER=$(find "$ANDROID_SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -n 1 || true)
           fi
           if [ -n "$SDKMANAGER" ] && [ -x "$SDKMANAGER" ]; then
-            echo "Using sdkmanager: $SDKMANAGER"
             (yes || true) | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           fi
-          ls -la "$ANDROID_SDK_DIR/licenses"
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -76,7 +74,6 @@ jobs:
       - name: Prepare APK for mobile download
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk BigBazerBejjur-debug.apk
-          ls -lh BigBazerBejjur-debug.apk
 
       - name: Upload APK workflow artifact
         uses: actions/upload-artifact@v4
