@@ -68,7 +68,7 @@ jobs:
               -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Restore google-services.json from GitHub Secret if omitted
+      - name: Restore and validate google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
@@ -77,9 +77,14 @@ jobs:
               printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
               echo "Restored app/google-services.json from GOOGLE_SERVICES_JSON secret."
             else
-              echo "WARNING: app/google-services.json missing. Add GOOGLE_SERVICES_JSON secret in GitHub repo settings for Firebase Auth & Firestore."
+              echo "ERROR: app/google-services.json missing. Add GOOGLE_SERVICES_JSON secret in GitHub repo Settings -> Secrets -> Actions."
+              exit 1
             fi
           fi
+          python3 -m json.tool app/google-services.json >/dev/null || {
+            echo "ERROR: app/google-services.json is not valid JSON. Re-copy the full JSON into GOOGLE_SERVICES_JSON secret."
+            exit 1
+          }
 
       - name: Build Debug APK
         run: gradle :app:assembleDebug --no-daemon
