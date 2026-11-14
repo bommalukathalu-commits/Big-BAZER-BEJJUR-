@@ -1,0 +1,500 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Customer profile and preferences stored in Firestore",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Customer full name" },
+        "email": { "type": "string", "description": "Verified Google email" },
+        "phone": { "type": "string", "description": "Customer mobile number" },
+        "photoUrl": { "type": "string", "description": "Profile photo URL" },
+        "preferredLanguage": { "type": "string", "enum": ["en", "te"], "description": "Preferred UI language" },
+        "role": { "type": "string", "enum": ["customer"], "description": "Customer role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "displayName", "email", "createdAt", "updatedAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Verified store owner/admin registry",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string", "description": "Admin Firebase Auth UID" },
+        "email": { "type": "string", "description": "Admin email address" },
+        "displayName": { "type": "string", "description": "Admin display name" },
+        "role": { "type": "string", "enum": ["owner", "manager"], "description": "Privilege level" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminId", "email", "displayName", "role", "createdAt"]
+    },
+    "Address": {
+      "title": "Address",
+      "description": "Customer delivery address book entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "label": { "type": "string", "description": "Home, Shop, Office, etc." },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "houseStreet": { "type": "string" },
+        "village": { "type": "string" },
+        "mandal": { "type": "string" },
+        "district": { "type": "string" },
+        "pinCode": { "type": "string" },
+        "landmark": { "type": "string" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "label", "fullName", "phone", "village", "mandal", "district", "pinCode", "isDefault", "createdAt", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Store product category with Telugu and English names",
+      "type": "object",
+      "properties": {
+        "nameEn": { "type": "string" },
+        "nameTe": { "type": "string" },
+        "iconKey": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nameEn", "nameTe", "iconKey", "sortOrder", "isActive", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Store product listing with pricing, stock, specifications, and cloud image references",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "nameTe": { "type": "string" },
+        "descriptionEn": { "type": "string" },
+        "descriptionTe": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryNameEn": { "type": "string" },
+        "imageUrls": { "type": "array", "description": "Up to 10 cloud image URIs (cloudimg:// or https://)" },
+        "imageIds": { "type": "array", "description": "Up to 10 unique cloud image IDs" },
+        "originalPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "discountPercent": { "type": "integer" },
+        "stock": { "type": "integer" },
+        "lowStockThreshold": { "type": "integer" },
+        "colors": { "type": "array" },
+        "sizes": { "type": "array" },
+        "specifications": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "isTrending": { "type": "boolean" },
+        "isBestSeller": { "type": "boolean" },
+        "isNewArrival": { "type": "boolean" },
+        "isFeaturedOffer": { "type": "boolean" },
+        "ratingAverage": { "type": "number" },
+        "reviewCount": { "type": "integer" },
+        "isDeleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sku", "nameEn", "nameTe", "categoryId", "originalPrice", "sellingPrice", "stock", "isAvailable", "isDeleted", "createdAt", "updatedAt"]
+    },
+    "ProductImage": {
+      "title": "ProductImage",
+      "description": "Cloud-hosted compressed product image record with unique ID and metadata",
+      "type": "object",
+      "properties": {
+        "imageId": { "type": "string" },
+        "productId": { "type": "string" },
+        "base64Data": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "sizeBytes": { "type": "integer" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "sortOrder": { "type": "integer" },
+        "uploadedBy": { "type": "string" },
+        "status": { "type": "string", "enum": ["UPLOADED", "PUBLISHED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["imageId", "productId", "base64Data", "mimeType", "sizeBytes", "uploadedBy", "status", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer product review and star rating",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "rating", "comment", "createdAt", "updatedAt"]
+    },
+    "CartItem": {
+      "title": "CartItem",
+      "description": "Persisted shopping cart item for a customer",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productNameEn": { "type": "string" },
+        "productNameTe": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "originalPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "quantity": { "type": "integer" },
+        "selectedColor": { "type": "string" },
+        "selectedSize": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "productId", "productNameEn", "sellingPrice", "quantity", "createdAt", "updatedAt"]
+    },
+    "WishlistItem": {
+      "title": "WishlistItem",
+      "description": "Saved wishlist product",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productNameEn": { "type": "string" },
+        "sellingPrice": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "productId", "productNameEn", "sellingPrice", "createdAt"]
+    },
+    "RecentlyViewed": {
+      "title": "RecentlyViewed",
+      "description": "Recently viewed product reference",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "viewedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "productId", "viewedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order with line items, delivery address, payment, and tracking status",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "addressLine": { "type": "string" },
+        "village": { "type": "string" },
+        "mandal": { "type": "string" },
+        "district": { "type": "string" },
+        "pinCode": { "type": "string" },
+        "itemsSummary": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "discountAmount": { "type": "number" },
+        "couponCode": { "type": "string" },
+        "deliveryCharge": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["COD", "UPI", "GATEWAY"] },
+        "paymentStatus": { "type": "string", "enum": ["PENDING", "PAID", "FAILED", "REFUNDED"] },
+        "orderStatus": { "type": "string", "enum": ["NEW", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED"] },
+        "trackingNote": { "type": "string" },
+        "upiTransactionRef": { "type": "string" },
+        "whatsappSent": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderNumber", "userId", "customerName", "customerPhone", "village", "mandal", "district", "pinCode", "totalAmount", "paymentMethod", "paymentStatus", "orderStatus", "createdAt", "updatedAt"]
+    },
+    "OrderItem": {
+      "title": "OrderItem",
+      "description": "Normalized order line item",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "quantity": { "type": "integer" },
+        "lineTotal": { "type": "number" },
+        "selectedColor": { "type": "string" },
+        "selectedSize": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "userId", "productId", "productName", "unitPrice", "quantity", "lineTotal", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transaction record for COD, UPI, or gateway",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["COD", "UPI", "GATEWAY"] },
+        "status": { "type": "string", "enum": ["INITIATED", "PENDING", "SUCCESS", "FAILED", "REFUND_REQUESTED", "REFUNDED"] },
+        "transactionRef": { "type": "string" },
+        "gatewayOrderId": { "type": "string" },
+        "failureReason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "userId", "amount", "method", "status", "createdAt", "updatedAt"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Promotional home banner",
+      "type": "object",
+      "properties": {
+        "titleEn": { "type": "string" },
+        "titleTe": { "type": "string" },
+        "subtitleEn": { "type": "string" },
+        "subtitleTe": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "actionCategoryId": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["titleEn", "titleTe", "isActive", "sortOrder", "createdAt", "updatedAt"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Festival and promotional discount coupon",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleTe": { "type": "string" },
+        "discountType": { "type": "string", "enum": ["PERCENT", "FLAT"] },
+        "discountValue": { "type": "number" },
+        "minPurchase": { "type": "number" },
+        "maxDiscount": { "type": "number" },
+        "usageLimit": { "type": "integer" },
+        "usedCount": { "type": "integer" },
+        "expiresAtEpochMs": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "titleEn", "titleTe", "discountType", "discountValue", "minPurchase", "usageLimit", "usedCount", "expiresAtEpochMs", "isActive", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Customer and admin notification center item",
+      "type": "object",
+      "properties": {
+        "targetUserId": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleTe": { "type": "string" },
+        "bodyEn": { "type": "string" },
+        "bodyTe": { "type": "string" },
+        "type": { "type": "string", "enum": ["ORDER", "OFFER", "PRODUCT", "PAYMENT", "STOCK", "ADMIN"] },
+        "referenceId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["targetUserId", "titleEn", "titleTe", "bodyEn", "bodyTe", "type", "isRead", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer return, complaint, feedback, or inquiry ticket",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "orderId": { "type": "string" },
+        "type": { "type": "string", "enum": ["RETURN", "COMPLAINT", "FEEDBACK", "INQUIRY"] },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "IN_REVIEW", "RESOLVED", "CLOSED"] },
+        "adminReply": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "type", "subject", "message", "status", "createdAt", "updatedAt"]
+    },
+    "DeletedProduct": {
+      "title": "DeletedProduct",
+      "description": "Soft-deleted product archive in owner Recycle Bin",
+      "type": "object",
+      "properties": {
+        "originalProductId": { "type": "string" },
+        "sku": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "nameTe": { "type": "string" },
+        "descriptionEn": { "type": "string" },
+        "descriptionTe": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryNameEn": { "type": "string" },
+        "imageUrls": { "type": "array" },
+        "imageIds": { "type": "array" },
+        "originalPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "discountPercent": { "type": "integer" },
+        "stock": { "type": "integer" },
+        "colors": { "type": "array" },
+        "sizes": { "type": "array" },
+        "specifications": { "type": "string" },
+        "deletedBy": { "type": "string" },
+        "deletedReason": { "type": "string" },
+        "backupVerified": { "type": "boolean" },
+        "deletedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["originalProductId", "nameEn", "sellingPrice", "deletedBy", "backupVerified", "deletedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable owner/admin security and data audit log",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "targetCollection": { "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "targetCollection", "targetId", "createdAt"]
+    },
+    "BackupRecord": {
+      "title": "BackupRecord",
+      "description": "Automated and manual database and image backup record",
+      "type": "object",
+      "properties": {
+        "backupType": { "type": "string", "enum": ["DATABASE_JSON", "IMAGE_MANIFEST", "FULL_SNAPSHOT"] },
+        "status": { "type": "string", "enum": ["SUCCESS", "FAILED", "RESTORED"] },
+        "itemCount": { "type": "integer" },
+        "imageCount": { "type": "integer" },
+        "sizeBytes": { "type": "integer" },
+        "retentionDays": { "type": "integer" },
+        "storageLocation": { "type": "string" },
+        "snapshotPayloadJson": { "type": "string" },
+        "errorMessage": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["backupType", "status", "itemCount", "imageCount", "sizeBytes", "retentionDays", "createdBy", "createdAt"]
+    },
+    "ShopAndDeliverySettings": {
+      "title": "ShopAndDeliverySettings",
+      "description": "Shop WhatsApp, UPI, Gateway, and Bejjur delivery configuration",
+      "type": "object",
+      "properties": {
+        "settingType": { "type": "string", "enum": ["shop", "delivery"] },
+        "shopName": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "upiId": { "type": "string" },
+        "upiMerchantName": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "shopAddress": { "type": "string" },
+        "paymentGatewayKeyId": { "type": "string" },
+        "freeDeliveryThreshold": { "type": "number" },
+        "baseDeliveryCharge": { "type": "number" },
+        "serviceableMandals": { "type": "string" },
+        "estimatedDeliveryDays": { "type": "string" },
+        "autoBackupEnabled": { "type": "boolean" },
+        "backupRetentionDays": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["settingType", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Customer profile document"
+    },
+    "/users/{userId}/addresses/{addressId}": {
+      "schema": { "$ref": "Address" },
+      "description": "Customer saved delivery addresses"
+    },
+    "/users/{userId}/cart/{cartItemId}": {
+      "schema": { "$ref": "CartItem" },
+      "description": "Persisted customer shopping cart items"
+    },
+    "/users/{userId}/wishlist/{productId}": {
+      "schema": { "$ref": "WishlistItem" },
+      "description": "Customer saved wishlist products"
+    },
+    "/users/{userId}/recentlyViewed/{productId}": {
+      "schema": { "$ref": "RecentlyViewed" },
+      "description": "Customer recently viewed product IDs"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "Admin" },
+      "description": "Verified store owner/admin registry"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "Category" },
+      "description": "Store categories"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "Product" },
+      "description": "Active and soft-deleted products catalog"
+    },
+    "/productImages/{imageId}": {
+      "schema": { "$ref": "ProductImage" },
+      "description": "Cloud-backed compressed product image blobs"
+    },
+    "/products/{productId}/reviews/{reviewId}": {
+      "schema": { "$ref": "Review" },
+      "description": "Product reviews and ratings"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "Order" },
+      "description": "Customer orders"
+    },
+    "/orders/{orderId}/orderItems/{itemId}": {
+      "schema": { "$ref": "OrderItem" },
+      "description": "Order line items"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "Payment" },
+      "description": "Payment records and refund status"
+    },
+    "/banners/{bannerId}": {
+      "schema": { "$ref": "Banner" },
+      "description": "Promotional home banners"
+    },
+    "/coupons/{couponId}": {
+      "schema": { "$ref": "Coupon" },
+      "description": "Discount coupons and festival offers"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "Notification" },
+      "description": "Customer and admin notifications"
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": { "$ref": "SupportTicket" },
+      "description": "Customer support, return, complaint, and feedback tickets"
+    },
+    "/deletedProducts/{productId}": {
+      "schema": { "$ref": "DeletedProduct" },
+      "description": "Recycle bin archive for soft-deleted products"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "AuditLog" },
+      "description": "Immutable owner audit log"
+    },
+    "/backupRecords/{backupId}": {
+      "schema": { "$ref": "BackupRecord" },
+      "description": "Database and image backup records"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "ShopAndDeliverySettings" },
+      "description": "Shop and delivery configuration settings"
+    }
+  }
+}

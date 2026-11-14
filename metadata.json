@@ -1,0 +1,6 @@
+{
+  "name": "Big Bazer Bejjur",
+  "description": "Full-featured bilingual (Telugu & English) online shopping application for BIG BAZER BEJJUR with product catalog, cart, checkout, UPI/COD payments, WhatsApp order integration, order tracking, and owner admin panel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
