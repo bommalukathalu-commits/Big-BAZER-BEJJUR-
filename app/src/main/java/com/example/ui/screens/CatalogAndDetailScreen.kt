@@ -241,6 +241,7 @@ fun ProductDetailScreen(
     allProducts: List<Product>,
     language: AppLanguage,
     isWishlisted: Boolean,
+    wishlistIds: Set<String> = emptySet(),
     reviewsFlow: Flow<List<ProductReview>>,
     onBack: () -> Unit,
     onRecordViewed: (String) -> Unit,
@@ -265,7 +266,36 @@ fun ProductDetailScreen(
     }
 
     val similar = remember(allProducts, product.id) {
-        allProducts.filter { it.id != product.id && it.categoryId == product.categoryId }.take(6)
+        val keywords = "${product.nameEn} ${product.nameTe} ${product.categoryNameEn}"
+            .lowercase()
+            .split(Regex("\\s+"))
+            .filter { it.length >= 3 }
+            .toSet()
+
+        allProducts
+            .asSequence()
+            .filter { it.id != product.id && !it.isDeleted }
+            .sortedWith(
+                compareByDescending<Product> { it.categoryId == product.categoryId }
+                    .thenByDescending { candidate ->
+                        val text = "${candidate.nameEn} ${candidate.nameTe} ${candidate.categoryNameEn}".lowercase()
+                        keywords.count { kw -> text.contains(kw) }
+                    }
+                    .thenByDescending {
+                        product.sellingPrice > 0 &&
+                            kotlin.math.abs(it.sellingPrice - product.sellingPrice) <= product.sellingPrice * 0.5
+                    }
+                    .thenByDescending { it.isAvailable && it.stock > 0 }
+                    .thenByDescending { it.ratingAverage }
+            )
+            .take(16)
+            .toList()
+    }
+    val sameCategoryOrTop = remember(similar) { similar.take(8) }
+    val moreGridProducts = remember(similar, sameCategoryOrTop) {
+        val topIds = sameCategoryOrTop.map { it.id }.toSet()
+        val extra = similar.filterNot { it.id in topIds }
+        if (extra.isNotEmpty()) extra else similar
     }
     val images = product.imageUrls.ifEmpty { listOf("") }
     val pagerState = rememberPagerState(pageCount = { images.size })
@@ -529,6 +559,37 @@ fun ProductDetailScreen(
                 }
             }
 
+            // Similar Products Carousel right after Description (Meesho / Amazon style)
+            if (sameCategoryOrTop.isNotEmpty()) {
+                item {
+                    Column {
+                        Text(
+                            text = strings.similarProducts,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(sameCategoryOrTop, key = { "sim_${it.id}" }) { p ->
+                                ProductCard(
+                                    product = p,
+                                    isTelugu = isTelugu,
+                                    isWishlisted = p.id in wishlistIds,
+                                    onClick = { onProductClick(p.id) },
+                                    onToggleWishlist = { onToggleWishlist(p) },
+                                    onQuickAdd = { onAddToCart(p, 1, "", "", false) },
+                                    modifier = Modifier.width(168.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Reviews & Ratings
             item {
                 Column(
@@ -589,31 +650,38 @@ fun ProductDetailScreen(
                 }
             }
 
-            // Similar Products
-            if (similar.isNotEmpty()) {
+            // Meesho / Amazon-style 2-Column More Related Products Grid
+            if (moreGridProducts.isNotEmpty()) {
                 item {
-                    Column {
-                        Text(
-                            strings.similarProducts,
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(similar, key = { it.id }) { p ->
-                                ProductCard(
-                                    product = p,
-                                    isTelugu = isTelugu,
-                                    isWishlisted = false,
-                                    onClick = { onProductClick(p.id) },
-                                    onToggleWishlist = { onToggleWishlist(p) },
-                                    onQuickAdd = { onAddToCart(p, 1, "", "", false) },
-                                    modifier = Modifier.width(168.dp)
-                                )
-                            }
+                    Text(
+                        text = strings.moreLikeThis,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                val rows = moreGridProducts.chunked(2)
+                items(rows.size, key = { idx -> "more_row_$idx" }) { rowIdx ->
+                    val pair = rows[rowIdx]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        pair.forEach { p ->
+                            ProductCard(
+                                product = p,
+                                isTelugu = isTelugu,
+                                isWishlisted = p.id in wishlistIds,
+                                onClick = { onProductClick(p.id) },
+                                onToggleWishlist = { onToggleWishlist(p) },
+                                onQuickAdd = { onAddToCart(p, 1, "", "", false) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) {
+                            Spacer(Modifier.weight(1f))
                         }
                     }
                 }

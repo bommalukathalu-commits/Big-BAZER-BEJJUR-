@@ -249,6 +249,7 @@ private fun AuthenticatedStoreApp(
                     allProducts = products,
                     language = language,
                     isWishlisted = wishlist.any { it.productId == product.id },
+                    wishlistIds = wishlist.map { it.productId }.toSet(),
                     reviewsFlow = vm.observeReviews(product.id),
                     onBack = { overlay = OverlayRoute.None },
                     onRecordViewed = vm::recordRecentlyViewed,

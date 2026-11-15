@@ -90,7 +90,8 @@ data class AppStrings(
     val shareAppQrSubtitle: String,
     val shareWithQr: String,
     val copyLink: String,
-    val linkCopied: String
+    val linkCopied: String,
+    val moreLikeThis: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -183,7 +184,8 @@ private val EnglishStrings = AppStrings(
     shareAppQrSubtitle = "Scan or share QR code to download BIG BAZER BEJJUR",
     shareWithQr = "Share QR",
     copyLink = "Copy Link",
-    linkCopied = "Copied"
+    linkCopied = "Copied",
+    moreLikeThis = "More Products You May Like"
 )
 
 private val TeluguStrings = AppStrings(
@@ -274,5 +276,6 @@ private val TeluguStrings = AppStrings(
     shareAppQrSubtitle = "బిగ్ బజార్ బెజ్జూర్ యాప్ డౌన్‌లోడ్ చేయడానికి QR కోడ్ స్కాన్ లేదా షేర్ చేయండి",
     shareWithQr = "QR షేర్",
     copyLink = "లింక్ కాపీ",
-    linkCopied = "కాపీ అయింది"
+    linkCopied = "కాపీ అయింది",
+    moreLikeThis = "మీకు నచ్చే మరిన్ని వస్తువులు"
 )
