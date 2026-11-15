@@ -3,6 +3,8 @@ package com.example.ui.auth
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -10,6 +12,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -22,12 +25,14 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.security.MessageDigest
 
 fun attemptAutoSignIn(
     context: Context,
     credentialManager: CredentialManager,
     onAuthSuccess: () -> Unit,
     onUnauthenticated: () -> Unit,
+    onAuthError: (String) -> Unit = {},
     scope: CoroutineScope
 ) {
     if (Firebase.auth.currentUser != null) {
@@ -63,7 +68,14 @@ fun attemptAutoSignIn(
             } else {
                 onUnauthenticated()
             }
-        } catch (_: Exception) {
+        } catch (_: NoCredentialException) {
+            onUnauthenticated()
+        } catch (_: GetCredentialCancellationException) {
+            onUnauthenticated()
+        } catch (e: Exception) {
+            Log.w("Auth", "Auto sign-in failed", e)
+            val sha1 = getAppSigningSha1(context)
+            onAuthError("Auto Sign-In failed (${e::class.java.simpleName}): ${e.localizedMessage ?: "Unknown error"}\nSHA-1: $sha1")
             onUnauthenticated()
         }
     }
@@ -129,11 +141,18 @@ fun onGoogleSignInClicked(
             }
         } catch (e: GetCredentialCancellationException) {
             Log.w("Auth", "Google Sign-In flow cancelled or dismissed: ${e.message}", e)
-            onAuthCancelled()
+            val msg = e.localizedMessage?.takeIf { it.isNotBlank() }
+            if (msg != null && !msg.contains("cancelled", ignoreCase = true) && !msg.contains("canceled", ignoreCase = true)) {
+                val sha1 = getAppSigningSha1(context)
+                onAuthError("Sign-In interrupted ($msg)\nSHA-1: $sha1")
+            } else {
+                onAuthCancelled()
+            }
         } catch (e: Exception) {
             Log.e("Auth", "Google Sign-In failed", e)
+            val sha1 = getAppSigningSha1(context)
             val detail = e.localizedMessage?.takeIf { it.isNotBlank() } ?: "Sign in failed"
-            onAuthError("${e::class.java.simpleName}: $detail")
+            onAuthError("${e::class.java.simpleName}: $detail\nSHA-1: $sha1")
         }
     }
 }
@@ -156,6 +175,34 @@ fun signOutUser(
         }
     }
 }
+
+fun getAuthDiagnosticSummary(context: Context): String {
+    val clientOk = resolveWebClientId(context) != null
+    val sha1 = getAppSigningSha1(context)
+    return "Config: ${if (clientOk) "OK" else "MISSING"} • SHA-1: $sha1"
+}
+
+@Suppress("DEPRECATION")
+fun getAppSigningSha1(context: Context): String = runCatching {
+    val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_SIGNING_CERTIFICATES
+        )
+    } else {
+        context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_SIGNATURES
+        )
+    }
+    val certBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        pkgInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+    } else {
+        pkgInfo.signatures?.firstOrNull()?.toByteArray()
+    } ?: return "Unavailable"
+    val digest = MessageDigest.getInstance("SHA1").digest(certBytes)
+    digest.joinToString(":") { "%02X".format(it) }
+}.getOrElse { "Unavailable" }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this

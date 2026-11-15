@@ -70,12 +70,15 @@ fun SignInScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val diagnosticSummary = remember(context) { getAuthDiagnosticSummary(context) }
+
     LaunchedEffect(Unit) {
         attemptAutoSignIn(
             context = context,
             credentialManager = credentialManager,
             onAuthSuccess = onAuthSuccess,
             onUnauthenticated = {},
+            onAuthError = { msg -> errorMessage = msg },
             scope = scope
         )
     }
@@ -285,6 +288,14 @@ fun SignInScreen(
                                         textAlign = TextAlign.Center
                                     )
                                 }
+
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = diagnosticSummary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
                     }
