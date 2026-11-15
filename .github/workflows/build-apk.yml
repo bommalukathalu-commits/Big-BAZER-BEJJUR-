@@ -59,14 +59,22 @@ jobs:
           gradle-version: "9.3.1"
 
       - name: Restore Firebase-registered debug keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
           if [ -f debug.keystore.base64 ]; then
+            echo "Found debug.keystore.base64 in repository."
             base64 -d debug.keystore.base64 > debug.keystore
+          elif [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "Restored debug.keystore from DEBUG_KEYSTORE_BASE64 secret."
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 -d > debug.keystore
           elif [ ! -f debug.keystore ]; then
+            echo "WARNING: debug.keystore.base64 missing! Generating temporary debug.keystore (SHA-1 will differ from Firebase)."
             keytool -genkeypair -v -keystore debug.keystore -storepass android \
               -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
               -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
+          keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256" || true
 
       - name: Restore and validate google-services.json
         env:
@@ -104,10 +112,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest BigBazerBejjur-debug.apk --clobber
-          else
-            gh release create latest BigBazerBejjur-debug.apk \
-              --title "Big Bazer Bejjur APK (Latest)" \
-              --notes "Tap BigBazerBejjur-debug.apk below to download and install directly on Android mobile."
-          fi
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" BigBazerBejjur-debug.apk \
+            --latest \
+            --title "Big Bazer Bejjur APK ($TAG)" \
+            --notes "Tap BigBazerBejjur-debug.apk below to download and install directly on Android mobile."
