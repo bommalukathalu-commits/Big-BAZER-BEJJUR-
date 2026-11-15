@@ -143,7 +143,8 @@ class StoreRepository(private val db: FirebaseFirestore) {
                 batch.commit().await()
             }
             val shopRef = db.collection("settings").document("shop")
-            if (!shopRef.get().await().exists()) {
+            val shopSnap = shopRef.get().await()
+            if (!shopSnap.exists()) {
                 shopRef.set(
                     mapOf(
                         "settingType" to "shop",
@@ -152,7 +153,7 @@ class StoreRepository(private val db: FirebaseFirestore) {
                         "upiId" to "",
                         "upiMerchantName" to "BIG BAZER BEJJUR",
                         "supportPhone" to "9999999999",
-                        "supportEmail" to BOOTSTRAP_OWNER_EMAIL,
+                        "supportEmail" to "",
                         "shopAddress" to "Main Road, Bejjur, Komaram Bheem Asifabad, Telangana - 504299",
                         "paymentGatewayKeyId" to "",
                         "freeDeliveryThreshold" to 499.0,
@@ -164,6 +165,16 @@ class StoreRepository(private val db: FirebaseFirestore) {
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
+            } else {
+                val existingEmail = shopSnap.getString("supportEmail").orEmpty()
+                if (existingEmail.equals(BOOTSTRAP_OWNER_EMAIL, ignoreCase = true)) {
+                    shopRef.update(
+                        mapOf(
+                            "supportEmail" to "",
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    ).await()
+                }
             }
         } catch (e: CancellationException) {
             throw e

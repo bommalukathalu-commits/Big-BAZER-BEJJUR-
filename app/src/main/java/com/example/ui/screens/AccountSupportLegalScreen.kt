@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -90,6 +91,7 @@ fun AccountScreen(
     onSubmitTicket: (String, String, String, String, () -> Unit) -> Unit,
     onOpenProduct: (String) -> Unit,
     onOpenAdminPanel: () -> Unit,
+    onShareApp: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
@@ -259,6 +261,12 @@ fun AccountScreen(
                 title = strings.helpAndSupport,
                 subtitle = "WhatsApp, FAQs, Returns & Complaints (${tickets.size})",
                 onClick = { showSupportDialog = true }
+            )
+            AccountMenuRow(
+                icon = Icons.Default.QrCode2,
+                title = strings.shareAppQr,
+                subtitle = strings.shareAppQrSubtitle,
+                onClick = onShareApp
             )
             AccountMenuRow(
                 icon = Icons.Default.Gavel,
@@ -501,7 +509,15 @@ fun AccountScreen(
                         "REFUNDS" -> "Approved refunds for UPI or online gateway payments are processed within 3-5 business days back to the original payment source."
                         "RETURNS" -> "Damaged or incorrect items can be requested for return within 48 hours of delivery via the Support Tickets page or WhatsApp."
                         "SHIPPING" -> "Delivery across ${shopSettings.serviceableMandals}. Estimated time: ${shopSettings.estimatedDeliveryDays}. Free delivery above ₹${shopSettings.freeDeliveryThreshold.toInt()}."
-                        else -> "Store: ${shopSettings.shopName}\nAddress: ${shopSettings.shopAddress}\nPhone: ${shopSettings.supportPhone}\nEmail: ${shopSettings.supportEmail}"
+                        else -> buildString {
+                            append("Store: ${shopSettings.shopName}\n")
+                            append("Address: ${shopSettings.shopAddress}\n")
+                            append("Phone: ${shopSettings.supportPhone}")
+                            val publicEmail = shopSettings.supportEmail.trim()
+                            if (publicEmail.isNotBlank() && !publicEmail.equals(com.example.data.repository.StoreRepository.BOOTSTRAP_OWNER_EMAIL, ignoreCase = true)) {
+                                append("\nEmail: $publicEmail")
+                            }
+                        }
                     }
                     Text(body, style = MaterialTheme.typography.bodyMedium)
                 }

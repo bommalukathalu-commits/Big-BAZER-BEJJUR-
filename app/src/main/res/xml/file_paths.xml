@@ -2,5 +2,6 @@
 <paths>
     <cache-path name="camera_captures" path="camera/" />
     <cache-path name="cropped_images" path="cropped/" />
+    <cache-path name="shared_qr" path="shared_qr/" />
     <files-path name="backups" path="backups/" />
 </paths>

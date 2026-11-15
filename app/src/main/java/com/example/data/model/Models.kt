@@ -463,7 +463,7 @@ data class ShopSettings(
     val upiId: String = "",
     val upiMerchantName: String = "BIG BAZER BEJJUR",
     val supportPhone: String = "9999999999",
-    val supportEmail: String = "bommalukathalu@gmail.com",
+    val supportEmail: String = "",
     val shopAddress: String = "Main Road, Bejjur, Komaram Bheem Asifabad, Telangana - 504299",
     val paymentGatewayKeyId: String = "",
     val freeDeliveryThreshold: Double = 499.0,

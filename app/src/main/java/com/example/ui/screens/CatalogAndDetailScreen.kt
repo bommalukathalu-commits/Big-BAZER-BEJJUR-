@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -246,7 +247,8 @@ fun ProductDetailScreen(
     onToggleWishlist: (Product) -> Unit,
     onAddToCart: (Product, Int, String, String, Boolean) -> Unit,
     onSubmitReview: (Int, String) -> Unit,
-    onProductClick: (String) -> Unit
+    onProductClick: (String) -> Unit,
+    onShareProduct: (Product) -> Unit = {}
 ) {
     val isTelugu = language == AppLanguage.TELUGU
     val strings = getStrings(language)
@@ -279,6 +281,15 @@ fun ProductDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { onShareProduct(product) },
+                        modifier = Modifier.testTag("detail_share_qr_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = strings.shareWithQr
+                        )
+                    }
                     IconButton(onClick = { onToggleWishlist(product) }) {
                         Icon(
                             imageVector = if (isWishlisted) Icons.Default.Favorite else Icons.Default.FavoriteBorder,

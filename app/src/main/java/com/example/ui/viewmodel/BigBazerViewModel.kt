@@ -77,6 +77,7 @@ class BigBazerViewModel(
     val appliedCoupon: StateFlow<Coupon?> = _appliedCoupon.asStateFlow()
 
     private val seenNotificationIds = mutableSetOf<String>()
+    private val inFlightCartKeys = mutableSetOf<String>()
 
     init {
         viewModelScope.launch {
@@ -317,13 +318,19 @@ class BigBazerViewModel(
     }
 
     fun addToCart(product: Product, qty: Int = 1, color: String = "", size: String = "", onDone: () -> Unit = {}) {
+        val lockKey = "${product.id}_${color.ifBlank { "def" }}_${size.ifBlank { "def" }}"
+        if (!inFlightCartKeys.add(lockKey)) return
         viewModelScope.launch {
-            cartRepo.addToCart(product, qty, color, size)
-                .onSuccess {
-                    _statusMessage.value = "${product.nameEn} added to cart"
-                    onDone()
-                }
-                .onFailure { _statusMessage.value = it.unwrapFirestoreMessage("Could not add to cart") }
+            try {
+                cartRepo.addToCart(product, qty, color, size)
+                    .onSuccess {
+                        _statusMessage.value = "${product.nameEn} added to cart"
+                        onDone()
+                    }
+                    .onFailure { _statusMessage.value = it.unwrapFirestoreMessage("Could not add to cart") }
+            } finally {
+                inFlightCartKeys.remove(lockKey)
+            }
         }
     }
 

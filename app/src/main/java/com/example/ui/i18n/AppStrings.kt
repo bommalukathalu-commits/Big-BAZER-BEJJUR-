@@ -85,7 +85,12 @@ data class AppStrings(
     val languageLabel: String,
     val themeLabel: String,
     val ownerAdminPanel: String,
-    val noProductsYet: String
+    val noProductsYet: String,
+    val shareAppQr: String,
+    val shareAppQrSubtitle: String,
+    val shareWithQr: String,
+    val copyLink: String,
+    val linkCopied: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -173,7 +178,12 @@ private val EnglishStrings = AppStrings(
     languageLabel = "Language / భాష",
     themeLabel = "Appearance",
     ownerAdminPanel = "Owner Admin Panel",
-    noProductsYet = "Store catalog is being stocked. Check back soon or add products from Admin Panel!"
+    noProductsYet = "Store catalog is being stocked. Check back soon or add products from Admin Panel!",
+    shareAppQr = "Share App & QR Code",
+    shareAppQrSubtitle = "Scan or share QR code to download BIG BAZER BEJJUR",
+    shareWithQr = "Share QR",
+    copyLink = "Copy Link",
+    linkCopied = "Copied"
 )
 
 private val TeluguStrings = AppStrings(
@@ -259,5 +269,10 @@ private val TeluguStrings = AppStrings(
     languageLabel = "భాష / Language",
     themeLabel = "థీమ్",
     ownerAdminPanel = "యజమాని అడ్మిన్ ప్యానెల్",
-    noProductsYet = "స్టోర్ వస్తువులు త్వరలో జోడించబడతాయి. అడ్మిన్ ప్యానెల్ నుండి వస్తువులను జోడించండి!"
+    noProductsYet = "స్టోర్ వస్తువులు త్వరలో జోడించబడతాయి. అడ్మిన్ ప్యానెల్ నుండి వస్తువులను జోడించండి!",
+    shareAppQr = "యాప్ షేర్ & QR కోడ్",
+    shareAppQrSubtitle = "బిగ్ బజార్ బెజ్జూర్ యాప్ డౌన్‌లోడ్ చేయడానికి QR కోడ్ స్కాన్ లేదా షేర్ చేయండి",
+    shareWithQr = "QR షేర్",
+    copyLink = "లింక్ కాపీ",
+    linkCopied = "కాపీ అయింది"
 )

@@ -55,7 +55,10 @@ import com.example.data.util.CloudImageFetcherFactory
 import com.example.data.util.PreferencesManager
 import com.example.ui.auth.SignInScreen
 import com.example.ui.auth.signOutUser
+import com.example.ui.components.APP_SHARE_LINK
 import com.example.ui.components.LocalAppImageLoader
+import com.example.ui.components.ShareQrDialog
+import com.example.ui.components.ShareTarget
 import com.example.ui.i18n.getStrings
 import com.example.ui.screens.AccountScreen
 import com.example.ui.screens.AdminPanelScreen
@@ -202,6 +205,28 @@ private fun AuthenticatedStoreApp(
 
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var overlay by remember { mutableStateOf<OverlayRoute>(OverlayRoute.None) }
+    var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
+
+    val openAppShareDialog = {
+        val storeTitle = shopSettings.shopName.ifBlank { "BIG BAZER BEJJUR" }
+        shareTarget = ShareTarget(
+            title = storeTitle,
+            subtitle = if (language == AppLanguage.TELUGU)
+                "బిగ్ బజార్ బెజ్జూర్ యాప్ డౌన్‌లోడ్ చేయడానికి ఈ QR కోడ్ స్కాన్ చేయండి"
+            else
+                "Scan this QR code to download $storeTitle APK",
+            qrContent = APP_SHARE_LINK,
+            shareMessage = "Shop at $storeTitle! Download the Android app here: $APP_SHARE_LINK"
+        )
+    }
+
+    if (shareTarget != null) {
+        ShareQrDialog(
+            target = shareTarget!!,
+            language = language,
+            onDismiss = { shareTarget = null }
+        )
+    }
 
     LaunchedEffect(statusMessage) {
         val msg = statusMessage
@@ -237,7 +262,17 @@ private fun AuthenticatedStoreApp(
                         }
                     },
                     onSubmitReview = { rating, comment -> vm.submitReview(product.id, rating, comment) },
-                    onProductClick = { pid -> overlay = OverlayRoute.ProductDetail(pid) }
+                    onProductClick = { pid -> overlay = OverlayRoute.ProductDetail(pid) },
+                    onShareProduct = { prod ->
+                        val pName = prod.localizedName(language == AppLanguage.TELUGU)
+                        val storeTitle = shopSettings.shopName.ifBlank { "BIG BAZER BEJJUR" }
+                        shareTarget = ShareTarget(
+                            title = pName,
+                            subtitle = "₹${prod.sellingPrice.toInt()} • $storeTitle",
+                            qrContent = APP_SHARE_LINK,
+                            shareMessage = "Check out $pName for ₹${prod.sellingPrice.toInt()} on $storeTitle! Download app: $APP_SHARE_LINK"
+                        )
+                    }
                 )
             } else {
                 overlay = OverlayRoute.None
@@ -402,6 +437,7 @@ private fun AuthenticatedStoreApp(
                             currentTab = MainTab.CART
                         },
                         onOpenNotifications = { currentTab = MainTab.ACCOUNT },
+                        onShareApp = openAppShareDialog,
                         onViewAllCatalog = {
                             vm.selectCategory(null)
                             currentTab = MainTab.CATALOG
@@ -462,6 +498,7 @@ private fun AuthenticatedStoreApp(
                         onSubmitTicket = vm::submitSupportTicket,
                         onOpenProduct = { pid -> overlay = OverlayRoute.ProductDetail(pid) },
                         onOpenAdminPanel = { if (isAdmin) overlay = OverlayRoute.AdminPanel },
+                        onShareApp = openAppShareDialog,
                         onSignOut = onSignOut
                     )
                 }

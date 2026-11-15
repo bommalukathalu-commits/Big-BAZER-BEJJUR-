@@ -353,6 +353,10 @@ fun AdminBackupsSettingsTab(
 
     var shopName by remember(shopSettings) { mutableStateOf(shopSettings.shopName) }
     var whatsapp by remember(shopSettings) { mutableStateOf(shopSettings.whatsappNumber) }
+    var supportEmail by remember(shopSettings) {
+        val current = shopSettings.supportEmail
+        mutableStateOf(if (current.equals(com.example.data.repository.StoreRepository.BOOTSTRAP_OWNER_EMAIL, ignoreCase = true)) "" else current)
+    }
     var upiId by remember(shopSettings) { mutableStateOf(shopSettings.upiId) }
     var upiName by remember(shopSettings) { mutableStateOf(shopSettings.upiMerchantName) }
     var gatewayKey by remember(shopSettings) { mutableStateOf(shopSettings.paymentGatewayKeyId) }
@@ -427,6 +431,7 @@ fun AdminBackupsSettingsTab(
                     Text("Shop, WhatsApp, UPI & Delivery Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     OutlinedTextField(value = shopName, onValueChange = { shopName = it }, label = { Text("Shop Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = whatsapp, onValueChange = { whatsapp = it }, label = { Text("WhatsApp Number (with country code e.g. 9198...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = supportEmail, onValueChange = { supportEmail = it }, label = { Text("Public Store Support Email (Optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = upiId, onValueChange = { upiId = it }, label = { Text("Owner UPI ID (e.g. shop@ybl)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = upiName, onValueChange = { upiName = it }, label = { Text("UPI Merchant Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = gatewayKey, onValueChange = { gatewayKey = it }, label = { Text("Payment Gateway Key ID (Optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -446,6 +451,7 @@ fun AdminBackupsSettingsTab(
                                 shopSettings.copy(
                                     shopName = shopName,
                                     whatsappNumber = whatsapp,
+                                    supportEmail = supportEmail.trim(),
                                     upiId = upiId,
                                     upiMerchantName = upiName,
                                     paymentGatewayKeyId = gatewayKey,

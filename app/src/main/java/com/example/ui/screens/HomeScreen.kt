@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Translate
@@ -84,6 +85,7 @@ fun HomeScreen(
     onQuickAdd: (Product) -> Unit,
     onApplyCoupon: (String) -> Unit,
     onOpenNotifications: () -> Unit,
+    onShareApp: () -> Unit,
     onViewAllCatalog: () -> Unit
 ) {
     val isTelugu = language == AppLanguage.TELUGU
@@ -91,11 +93,15 @@ fun HomeScreen(
     val unreadCount = notifications.count { !it.isRead }
     val wishlistIds = wishlist.map { it.productId }.toSet()
 
-    val newArrivals = products.filter { it.isNewArrival }.ifEmpty { products.take(6) }
-    val trending = products.filter { it.isTrending }.ifEmpty { products.take(6) }
-    val bestSellers = products.filter { it.isBestSeller }.ifEmpty { products.sortedByDescending { it.ratingAverage }.take(6) }
+    val newArrivals = products.filter { it.isNewArrival }.ifEmpty { products.take(8) }
+    val newArrivalIds = newArrivals.map { it.id }.toSet()
+    val trending = products.filter { it.isTrending }
+        .let { list -> if (products.size <= 2) list.filterNot { it.id in newArrivalIds } else list }
+    val bestSellers = products.filter { it.isBestSeller }
+        .let { list -> if (products.size <= 2) list.filterNot { it.id in newArrivalIds } else list }
     val recentlyViewed = recentlyViewedIds.mapNotNull { id -> products.firstOrNull { it.id == id } }
-    val recommendations = products.filter { it.isFeaturedOffer || it.computedDiscountPercent() >= 10 }.ifEmpty { products.take(6) }
+    val recommendations = products.filter { it.isFeaturedOffer || it.computedDiscountPercent() >= 10 }
+        .let { list -> if (products.size <= 2) list.filterNot { it.id in newArrivalIds } else list }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -177,6 +183,16 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
+                        }
+                        IconButton(
+                            onClick = onShareApp,
+                            modifier = Modifier.testTag("home_share_qr_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = strings.shareAppQr,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                         IconButton(
                             onClick = onOpenNotifications,
@@ -393,55 +409,63 @@ fun HomeScreen(
                 }
             }
         } else {
-            item {
-                ProductHorizontalSection(
-                    title = strings.newArrivals,
-                    products = newArrivals,
-                    isTelugu = isTelugu,
-                    wishlistIds = wishlistIds,
-                    onViewAll = onViewAllCatalog,
-                    onProductClick = onProductClick,
-                    onToggleWishlist = onToggleWishlist,
-                    onQuickAdd = onQuickAdd
-                )
+            if (newArrivals.isNotEmpty()) {
+                item {
+                    ProductHorizontalSection(
+                        title = strings.newArrivals,
+                        products = newArrivals,
+                        isTelugu = isTelugu,
+                        wishlistIds = wishlistIds,
+                        onViewAll = onViewAllCatalog,
+                        onProductClick = onProductClick,
+                        onToggleWishlist = onToggleWishlist,
+                        onQuickAdd = onQuickAdd
+                    )
+                }
             }
-            item {
-                ProductHorizontalSection(
-                    title = strings.trendingNow,
-                    products = trending,
-                    isTelugu = isTelugu,
-                    wishlistIds = wishlistIds,
-                    onViewAll = onViewAllCatalog,
-                    onProductClick = onProductClick,
-                    onToggleWishlist = onToggleWishlist,
-                    onQuickAdd = onQuickAdd
-                )
+            if (trending.isNotEmpty()) {
+                item {
+                    ProductHorizontalSection(
+                        title = strings.trendingNow,
+                        products = trending,
+                        isTelugu = isTelugu,
+                        wishlistIds = wishlistIds,
+                        onViewAll = onViewAllCatalog,
+                        onProductClick = onProductClick,
+                        onToggleWishlist = onToggleWishlist,
+                        onQuickAdd = onQuickAdd
+                    )
+                }
             }
-            item {
-                ProductHorizontalSection(
-                    title = strings.bestSellers,
-                    products = bestSellers,
-                    isTelugu = isTelugu,
-                    wishlistIds = wishlistIds,
-                    onViewAll = onViewAllCatalog,
-                    onProductClick = onProductClick,
-                    onToggleWishlist = onToggleWishlist,
-                    onQuickAdd = onQuickAdd
-                )
+            if (bestSellers.isNotEmpty()) {
+                item {
+                    ProductHorizontalSection(
+                        title = strings.bestSellers,
+                        products = bestSellers,
+                        isTelugu = isTelugu,
+                        wishlistIds = wishlistIds,
+                        onViewAll = onViewAllCatalog,
+                        onProductClick = onProductClick,
+                        onToggleWishlist = onToggleWishlist,
+                        onQuickAdd = onQuickAdd
+                    )
+                }
             }
-            item {
-                ProductHorizontalSection(
-                    title = strings.recommendedForYou,
-                    products = recommendations,
-                    isTelugu = isTelugu,
-                    wishlistIds = wishlistIds,
-                    onViewAll = onViewAllCatalog,
-                    onProductClick = onProductClick,
-                    onToggleWishlist = onToggleWishlist,
-                    onQuickAdd = onQuickAdd
-                )
+            if (recommendations.isNotEmpty()) {
+                item {
+                    ProductHorizontalSection(
+                        title = strings.recommendedForYou,
+                        products = recommendations,
+                        isTelugu = isTelugu,
+                        wishlistIds = wishlistIds,
+                        onViewAll = onViewAllCatalog,
+                        onProductClick = onProductClick,
+                        onToggleWishlist = onToggleWishlist,
+                        onQuickAdd = onQuickAdd
+                    )
+                }
             }
-            if (recentlyViewed.isNotEmpty()) {
+            if (recentlyViewed.isNotEmpty() && products.size > 1) {
                 item {
                     ProductHorizontalSection(
                         title = strings.recentlyViewed,
