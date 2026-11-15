@@ -64,17 +64,15 @@ jobs:
         run: |
           if [ -f debug.keystore.base64 ]; then
             echo "Found debug.keystore.base64 in repository."
-            base64 -d debug.keystore.base64 > debug.keystore
+            tr -d '[:space:]' < debug.keystore.base64 | base64 -d > debug.keystore
           elif [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
             echo "Restored debug.keystore from DEBUG_KEYSTORE_BASE64 secret."
-            printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 -d > debug.keystore
-          elif [ ! -f debug.keystore ]; then
-            echo "WARNING: debug.keystore.base64 missing! Generating temporary debug.keystore (SHA-1 will differ from Firebase)."
-            keytool -genkeypair -v -keystore debug.keystore -storepass android \
-              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > debug.keystore
+          else
+            echo "ERROR: DEBUG_KEYSTORE_BASE64 secret is missing! Add DEBUG_KEYSTORE_BASE64 in GitHub repo Settings -> Secrets -> Actions so Google Sign-In SHA-1 matches Firebase."
+            exit 1
           fi
-          keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256" || true
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256" || true
 
       - name: Restore and validate google-services.json
         env:
@@ -91,6 +89,12 @@ jobs:
           fi
           python3 -m json.tool app/google-services.json >/dev/null || {
             echo "ERROR: app/google-services.json is not valid JSON. Re-copy the full JSON into GOOGLE_SERVICES_JSON secret."
+            exit 1
+          }
+          KEYSTORE_SHA1=$(keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -m1 "SHA1:" | sed 's/.*SHA1:[[:space:]]*//; s/://g' | tr '[:upper:]' '[:lower:]')
+          echo "Keystore SHA-1 (hex): $KEYSTORE_SHA1"
+          grep -qi "$KEYSTORE_SHA1" app/google-services.json || {
+            echo "ERROR: Keystore SHA-1 ($KEYSTORE_SHA1) does not match app/google-services.json! Re-check DEBUG_KEYSTORE_BASE64 secret."
             exit 1
           }
 
