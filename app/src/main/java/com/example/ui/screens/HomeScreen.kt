@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.AppNotification
 import com.example.data.model.Banner
@@ -135,10 +137,11 @@ fun HomeScreen(
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Storefront,
-                                    contentDescription = strings.appName,
-                                    tint = MaterialTheme.colorScheme.onPrimary
+                                Text(
+                                    text = "B",
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
                         }
@@ -410,74 +413,69 @@ fun HomeScreen(
             }
         } else {
             if (newArrivals.isNotEmpty()) {
-                item {
-                    ProductHorizontalSection(
-                        title = strings.newArrivals,
-                        products = newArrivals,
-                        isTelugu = isTelugu,
-                        wishlistIds = wishlistIds,
-                        onViewAll = onViewAllCatalog,
-                        onProductClick = onProductClick,
-                        onToggleWishlist = onToggleWishlist,
-                        onQuickAdd = onQuickAdd
-                    )
-                }
+                productGridSection(
+                    sectionKey = "new_arrivals",
+                    title = strings.newArrivals,
+                    products = newArrivals,
+                    isTelugu = isTelugu,
+                    wishlistIds = wishlistIds,
+                    onViewAll = onViewAllCatalog,
+                    onProductClick = onProductClick,
+                    onToggleWishlist = onToggleWishlist,
+                    onQuickAdd = onQuickAdd
+                )
             }
             if (trending.isNotEmpty()) {
-                item {
-                    ProductHorizontalSection(
-                        title = strings.trendingNow,
-                        products = trending,
-                        isTelugu = isTelugu,
-                        wishlistIds = wishlistIds,
-                        onViewAll = onViewAllCatalog,
-                        onProductClick = onProductClick,
-                        onToggleWishlist = onToggleWishlist,
-                        onQuickAdd = onQuickAdd
-                    )
-                }
+                productGridSection(
+                    sectionKey = "trending",
+                    title = strings.trendingNow,
+                    products = trending,
+                    isTelugu = isTelugu,
+                    wishlistIds = wishlistIds,
+                    onViewAll = onViewAllCatalog,
+                    onProductClick = onProductClick,
+                    onToggleWishlist = onToggleWishlist,
+                    onQuickAdd = onQuickAdd
+                )
             }
             if (bestSellers.isNotEmpty()) {
-                item {
-                    ProductHorizontalSection(
-                        title = strings.bestSellers,
-                        products = bestSellers,
-                        isTelugu = isTelugu,
-                        wishlistIds = wishlistIds,
-                        onViewAll = onViewAllCatalog,
-                        onProductClick = onProductClick,
-                        onToggleWishlist = onToggleWishlist,
-                        onQuickAdd = onQuickAdd
-                    )
-                }
+                productGridSection(
+                    sectionKey = "best_sellers",
+                    title = strings.bestSellers,
+                    products = bestSellers,
+                    isTelugu = isTelugu,
+                    wishlistIds = wishlistIds,
+                    onViewAll = onViewAllCatalog,
+                    onProductClick = onProductClick,
+                    onToggleWishlist = onToggleWishlist,
+                    onQuickAdd = onQuickAdd
+                )
             }
             if (recommendations.isNotEmpty()) {
-                item {
-                    ProductHorizontalSection(
-                        title = strings.recommendedForYou,
-                        products = recommendations,
-                        isTelugu = isTelugu,
-                        wishlistIds = wishlistIds,
-                        onViewAll = onViewAllCatalog,
-                        onProductClick = onProductClick,
-                        onToggleWishlist = onToggleWishlist,
-                        onQuickAdd = onQuickAdd
-                    )
-                }
+                productGridSection(
+                    sectionKey = "recommended",
+                    title = strings.recommendedForYou,
+                    products = recommendations,
+                    isTelugu = isTelugu,
+                    wishlistIds = wishlistIds,
+                    onViewAll = onViewAllCatalog,
+                    onProductClick = onProductClick,
+                    onToggleWishlist = onToggleWishlist,
+                    onQuickAdd = onQuickAdd
+                )
             }
             if (recentlyViewed.isNotEmpty() && products.size > 1) {
-                item {
-                    ProductHorizontalSection(
-                        title = strings.recentlyViewed,
-                        products = recentlyViewed,
-                        isTelugu = isTelugu,
-                        wishlistIds = wishlistIds,
-                        onViewAll = onViewAllCatalog,
-                        onProductClick = onProductClick,
-                        onToggleWishlist = onToggleWishlist,
-                        onQuickAdd = onQuickAdd
-                    )
-                }
+                productGridSection(
+                    sectionKey = "recent",
+                    title = strings.recentlyViewed,
+                    products = recentlyViewed,
+                    isTelugu = isTelugu,
+                    wishlistIds = wishlistIds,
+                    onViewAll = onViewAllCatalog,
+                    onProductClick = onProductClick,
+                    onToggleWishlist = onToggleWishlist,
+                    onQuickAdd = onQuickAdd
+                )
             }
         }
     }
@@ -520,10 +518,30 @@ private fun BannerCard(
                         listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent)
                     )
                 )
-                .padding(16.dp),
-            contentAlignment = Alignment.BottomStart
+                .padding(16.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth(0.72f)) {
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                shape = CircleShape,
+                shadowElevation = 4.dp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "B",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(0.75f)
+            ) {
                 Text(
                     text = title,
                     color = Color.White,
@@ -565,8 +583,8 @@ private fun SectionHeader(title: String, actionLabel: String?, onAction: () -> U
     }
 }
 
-@Composable
-private fun ProductHorizontalSection(
+private fun LazyListScope.productGridSection(
+    sectionKey: String,
     title: String,
     products: List<Product>,
     isTelugu: Boolean,
@@ -576,14 +594,23 @@ private fun ProductHorizontalSection(
     onToggleWishlist: (Product) -> Unit,
     onQuickAdd: (Product) -> Unit
 ) {
-    Column {
-        SectionHeader(title = title, actionLabel = if (isTelugu) "అన్నీ" else "See All", onAction = onViewAll)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
+    item(key = "${sectionKey}_header") {
+        SectionHeader(
+            title = title,
+            actionLabel = if (isTelugu) "అన్నీ" else "See All",
+            onAction = onViewAll
+        )
+    }
+    val rows = products.chunked(2)
+    items(rows.size, key = { idx -> "${sectionKey}_row_$idx" }) { rowIdx ->
+        val pair = rows[rowIdx]
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(products, key = { it.id }) { product ->
+            pair.forEach { product ->
                 ProductCard(
                     product = product,
                     isTelugu = isTelugu,
@@ -591,8 +618,11 @@ private fun ProductHorizontalSection(
                     onClick = { onProductClick(product.id) },
                     onToggleWishlist = { onToggleWishlist(product) },
                     onQuickAdd = { onQuickAdd(product) },
-                    modifier = Modifier.width(172.dp)
+                    modifier = Modifier.weight(1f)
                 )
+            }
+            if (pair.size == 1) {
+                Spacer(Modifier.weight(1f))
             }
         }
     }

@@ -559,32 +559,38 @@ fun ProductDetailScreen(
                 }
             }
 
-            // Similar Products Carousel right after Description (Meesho / Amazon style)
+            // Similar Products Grid right after Description (scrolls vertically, no sideways scroll)
             if (sameCategoryOrTop.isNotEmpty()) {
                 item {
-                    Column {
-                        Text(
-                            text = strings.similarProducts,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(sameCategoryOrTop, key = { "sim_${it.id}" }) { p ->
-                                ProductCard(
-                                    product = p,
-                                    isTelugu = isTelugu,
-                                    isWishlisted = p.id in wishlistIds,
-                                    onClick = { onProductClick(p.id) },
-                                    onToggleWishlist = { onToggleWishlist(p) },
-                                    onQuickAdd = { onAddToCart(p, 1, "", "", false) },
-                                    modifier = Modifier.width(168.dp)
-                                )
-                            }
+                    Text(
+                        text = strings.similarProducts,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                val simRows = sameCategoryOrTop.chunked(2)
+                items(simRows.size, key = { idx -> "sim_row_$idx" }) { rowIdx ->
+                    val pair = simRows[rowIdx]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        pair.forEach { p ->
+                            ProductCard(
+                                product = p,
+                                isTelugu = isTelugu,
+                                isWishlisted = p.id in wishlistIds,
+                                onClick = { onProductClick(p.id) },
+                                onToggleWishlist = { onToggleWishlist(p) },
+                                onQuickAdd = { onAddToCart(p, 1, "", "", false) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) {
+                            Spacer(Modifier.weight(1f))
                         }
                     }
                 }
