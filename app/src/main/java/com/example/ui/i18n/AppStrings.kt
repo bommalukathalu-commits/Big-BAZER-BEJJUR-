@@ -91,7 +91,15 @@ data class AppStrings(
     val shareWithQr: String,
     val copyLink: String,
     val linkCopied: String,
-    val moreLikeThis: String
+    val moreLikeThis: String,
+    val checkForUpdates: String,
+    val updateAvailableTitle: String,
+    val updateAvailableBody: String,
+    val updateNow: String,
+    val later: String,
+    val upToDateMessage: String,
+    val checkingUpdates: String,
+    val currentVersionLabel: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -185,7 +193,15 @@ private val EnglishStrings = AppStrings(
     shareWithQr = "Share QR",
     copyLink = "Copy Link",
     linkCopied = "Copied",
-    moreLikeThis = "More Products You May Like"
+    moreLikeThis = "More Products You May Like",
+    checkForUpdates = "Check for App Updates",
+    updateAvailableTitle = "New Update Available",
+    updateAvailableBody = "A newer version of BIG BAZER BEJJUR is ready with new features & improvements.",
+    updateNow = "Update Now",
+    later = "Later",
+    upToDateMessage = "You are already using the latest version!",
+    checkingUpdates = "Checking for updates...",
+    currentVersionLabel = "Current Version"
 )
 
 private val TeluguStrings = AppStrings(
@@ -277,5 +293,13 @@ private val TeluguStrings = AppStrings(
     shareWithQr = "QR షేర్",
     copyLink = "లింక్ కాపీ",
     linkCopied = "కాపీ అయింది",
-    moreLikeThis = "మీకు నచ్చే మరిన్ని వస్తువులు"
+    moreLikeThis = "మీకు నచ్చే మరిన్ని వస్తువులు",
+    checkForUpdates = "యాప్ అప్‌డేట్ చెక్ చేయండి",
+    updateAvailableTitle = "కొత్త అప్‌డేట్ సిద్ధంగా ఉంది!",
+    updateAvailableBody = "బిగ్ బజార్ బెజ్జూర్ కొత్త వెర్షన్ మరియు మెరుగైన ఫీచర్లు అందుబాటులో ఉన్నాయి.",
+    updateNow = "ఇప్పుడే అప్‌డేట్ చేయండి",
+    later = "తర్వాత",
+    upToDateMessage = "మీరు ఇప్పటికే లేటెస్ట్ వెర్షన్ వాడుతున్నారు!",
+    checkingUpdates = "అప్‌డేట్ కోసం చెక్ చేస్తోంది...",
+    currentVersionLabel = "ప్రస్తుత వెర్షన్"
 )

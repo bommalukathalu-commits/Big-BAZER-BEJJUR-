@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -62,6 +63,7 @@ import com.example.data.model.Coupon
 import com.example.data.model.Product
 import com.example.data.model.WishlistItem
 import com.example.data.util.AppLanguage
+import com.example.data.util.AppUpdateInfo
 import com.example.ui.components.CloudProductImage
 import com.example.ui.components.ProductCard
 import com.example.ui.components.categoryIconFor
@@ -88,7 +90,9 @@ fun HomeScreen(
     onApplyCoupon: (String) -> Unit,
     onOpenNotifications: () -> Unit,
     onShareApp: () -> Unit,
-    onViewAllCatalog: () -> Unit
+    onViewAllCatalog: () -> Unit,
+    availableUpdate: AppUpdateInfo? = null,
+    onUpdateApp: () -> Unit = {}
 ) {
     val isTelugu = language == AppLanguage.TELUGU
     val strings = getStrings(language)
@@ -238,6 +242,47 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .testTag("home_search_input")
                 )
+            }
+        }
+
+        if (availableUpdate != null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clickable(onClick = onUpdateApp)
+                        .testTag("home_update_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = strings.updateAvailableTitle,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${strings.updateAvailableTitle} (${availableUpdate.versionTag})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = strings.updateNow,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
             }
         }
 

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -66,6 +67,8 @@ import com.example.data.model.UserProfile
 import com.example.data.model.WishlistItem
 import com.example.data.util.AppLanguage
 import com.example.data.util.AppThemeMode
+import com.example.data.util.AppUpdateChecker
+import com.example.data.util.AppUpdateInfo
 import com.example.data.util.LocalNotificationHelper
 import com.example.ui.i18n.getStrings
 import com.example.ui.theme.ErrorRed
@@ -92,6 +95,9 @@ fun AccountScreen(
     onOpenProduct: (String) -> Unit,
     onOpenAdminPanel: () -> Unit,
     onShareApp: () -> Unit,
+    availableUpdate: AppUpdateInfo? = null,
+    isCheckingUpdate: Boolean = false,
+    onCheckForUpdates: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
@@ -267,6 +273,16 @@ fun AccountScreen(
                 title = strings.shareAppQr,
                 subtitle = strings.shareAppQrSubtitle,
                 onClick = onShareApp
+            )
+            AccountMenuRow(
+                icon = Icons.Default.SystemUpdate,
+                title = strings.checkForUpdates,
+                subtitle = when {
+                    isCheckingUpdate -> strings.checkingUpdates
+                    availableUpdate != null -> "${strings.updateAvailableTitle}: ${availableUpdate.versionTag} (${strings.updateNow})"
+                    else -> "${strings.currentVersionLabel}: ${AppUpdateChecker.currentVersionLabel()}"
+                },
+                onClick = onCheckForUpdates
             )
             AccountMenuRow(
                 icon = Icons.Default.Gavel,

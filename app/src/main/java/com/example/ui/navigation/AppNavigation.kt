@@ -14,8 +14,10 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -51,8 +54,11 @@ import com.example.data.repository.CartAndOrderRepository
 import com.example.data.repository.StoreRepository
 import com.example.data.util.AppLanguage
 import com.example.data.util.AppThemeMode
+import com.example.data.util.AppUpdateChecker
+import com.example.data.util.AppUpdateInfo
 import com.example.data.util.CloudImageFetcherFactory
 import com.example.data.util.PreferencesManager
+import com.example.data.util.UpdateCheckResult
 import com.example.ui.auth.SignInScreen
 import com.example.ui.auth.signOutUser
 import com.example.ui.components.APP_SHARE_LINK
@@ -169,6 +175,8 @@ private fun AuthenticatedStoreApp(
     )
 
     val strings = getStrings(language)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val statusMessage by vm.statusMessage.collectAsStateWithLifecycle()
@@ -206,6 +214,19 @@ private fun AuthenticatedStoreApp(
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var overlay by remember { mutableStateOf<OverlayRoute>(OverlayRoute.None) }
     var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
+    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        when (val res = AppUpdateChecker.checkForUpdate()) {
+            is UpdateCheckResult.UpdateAvailable -> {
+                availableUpdate = res.info
+                showUpdateDialog = true
+            }
+            else -> Unit
+        }
+    }
 
     val openAppShareDialog = {
         val storeTitle = shopSettings.shopName.ifBlank { "BIG BAZER BEJJUR" }
@@ -225,6 +246,41 @@ private fun AuthenticatedStoreApp(
             target = shareTarget!!,
             language = language,
             onDismiss = { shareTarget = null }
+        )
+    }
+
+    if (showUpdateDialog && availableUpdate != null) {
+        val update = availableUpdate!!
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text("${strings.updateAvailableTitle} (${update.versionTag})") },
+            text = {
+                Text(
+                    buildString {
+                        append(strings.updateAvailableBody)
+                        append("\n\n${strings.currentVersionLabel}: ${AppUpdateChecker.currentVersionLabel()}")
+                        if (update.releaseNotes.isNotBlank()) {
+                            append("\n\n${update.releaseNotes.take(240)}")
+                        }
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateDialog = false
+                        AppUpdateChecker.openUpdateDownload(context, update)
+                    },
+                    modifier = Modifier.testTag("update_now_dialog_btn")
+                ) {
+                    Text(strings.updateNow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text(strings.later)
+                }
+            }
         )
     }
 
@@ -442,6 +498,11 @@ private fun AuthenticatedStoreApp(
                         onViewAllCatalog = {
                             vm.selectCategory(null)
                             currentTab = MainTab.CATALOG
+                        },
+                        availableUpdate = availableUpdate,
+                        onUpdateApp = {
+                            val upd = availableUpdate
+                            if (upd != null) AppUpdateChecker.openUpdateDownload(context, upd)
                         }
                     )
                     MainTab.CATALOG -> CatalogScreen(
@@ -500,6 +561,29 @@ private fun AuthenticatedStoreApp(
                         onOpenProduct = { pid -> overlay = OverlayRoute.ProductDetail(pid) },
                         onOpenAdminPanel = { if (isAdmin) overlay = OverlayRoute.AdminPanel },
                         onShareApp = openAppShareDialog,
+                        availableUpdate = availableUpdate,
+                        isCheckingUpdate = isCheckingUpdate,
+                        onCheckForUpdates = {
+                            if (!isCheckingUpdate) {
+                                isCheckingUpdate = true
+                                scope.launch {
+                                    when (val res = AppUpdateChecker.checkForUpdate()) {
+                                        is UpdateCheckResult.UpdateAvailable -> {
+                                            availableUpdate = res.info
+                                            showUpdateDialog = true
+                                        }
+                                        UpdateCheckResult.UpToDate -> {
+                                            availableUpdate = null
+                                            vm.showMessage(strings.upToDateMessage)
+                                        }
+                                        is UpdateCheckResult.Error -> {
+                                            vm.showMessage(res.message)
+                                        }
+                                    }
+                                    isCheckingUpdate = false
+                                }
+                            }
+                        },
                         onSignOut = onSignOut
                     )
                 }
