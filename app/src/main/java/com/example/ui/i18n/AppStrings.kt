@@ -21,7 +21,7 @@ data class AppStrings(
     val trendingNow: String,
     val bestSellers: String,
     val specialOffers: String,
-    val recommendedForYou: String,
+    val budgetStore: String,
     val recentlyViewed: String,
     val shopByCategory: String,
     val viewAll: String,
@@ -99,7 +99,10 @@ data class AppStrings(
     val later: String,
     val upToDateMessage: String,
     val checkingUpdates: String,
-    val currentVersionLabel: String
+    val currentVersionLabel: String,
+    val askOnWhatsapp: String,
+    val reorderItems: String,
+    val freeDeliveryUnlocked: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -123,7 +126,7 @@ private val EnglishStrings = AppStrings(
     trendingNow = "Trending Now",
     bestSellers = "Best Sellers",
     specialOffers = "Festival Offers & Coupons",
-    recommendedForYou = "Recommended For You",
+    budgetStore = "Budget Store Deals",
     recentlyViewed = "Recently Viewed",
     shopByCategory = "Shop by Category",
     viewAll = "View All",
@@ -201,7 +204,10 @@ private val EnglishStrings = AppStrings(
     later = "Later",
     upToDateMessage = "You are already using the latest version!",
     checkingUpdates = "Checking for updates...",
-    currentVersionLabel = "Current Version"
+    currentVersionLabel = "Current Version",
+    askOnWhatsapp = "Ask on WhatsApp",
+    reorderItems = "Reorder",
+    freeDeliveryUnlocked = "Free delivery unlocked for Bejjur!"
 )
 
 private val TeluguStrings = AppStrings(
@@ -223,7 +229,7 @@ private val TeluguStrings = AppStrings(
     trendingNow = "ట్రెండింగ్",
     bestSellers = "బెస్ట్ సెల్లర్స్",
     specialOffers = "పండుగ ఆఫర్లు & కూపన్లు",
-    recommendedForYou = "మీ కోసం సిఫార్సులు",
+    budgetStore = "బడ్జెట్ స్టోర్ డీల్స్",
     recentlyViewed = "ఇటీవల చూసినవి",
     shopByCategory = "వర్గాల వారీగా కొనండి",
     viewAll = "అన్నీ చూడండి",
@@ -301,5 +307,8 @@ private val TeluguStrings = AppStrings(
     later = "తర్వాత",
     upToDateMessage = "మీరు ఇప్పటికే లేటెస్ట్ వెర్షన్ వాడుతున్నారు!",
     checkingUpdates = "అప్‌డేట్ కోసం చెక్ చేస్తోంది...",
-    currentVersionLabel = "ప్రస్తుత వెర్షన్"
+    currentVersionLabel = "ప్రస్తుత వెర్షన్",
+    askOnWhatsapp = "WhatsApp లో అడగండి",
+    reorderItems = "మళ్ళీ ఆర్డర్",
+    freeDeliveryUnlocked = "బెజ్జూర్ లో ఉచిత డెలివరీ అన్‌లాక్ అయింది!"
 )

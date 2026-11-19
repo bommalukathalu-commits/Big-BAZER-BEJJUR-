@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
@@ -63,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -85,11 +89,13 @@ fun CatalogScreen(
     language: AppLanguage,
     searchQuery: String,
     selectedCategoryId: String?,
+    maxPriceFilter: Int? = null,
     categories: List<Category>,
     products: List<Product>,
     wishlist: List<WishlistItem>,
     onSearchChange: (String) -> Unit,
     onCategorySelect: (String?) -> Unit,
+    onMaxPriceChange: (Int?) -> Unit = {},
     onProductClick: (String) -> Unit,
     onToggleWishlist: (Product) -> Unit,
     onQuickAdd: (Product) -> Unit
@@ -100,9 +106,10 @@ fun CatalogScreen(
     var sortMode by remember { mutableStateOf("NEWEST") }
     var inStockOnly by remember { mutableStateOf(false) }
 
-    val filtered = remember(products, searchQuery, selectedCategoryId, sortMode, inStockOnly) {
+    val filtered = remember(products, searchQuery, selectedCategoryId, maxPriceFilter, sortMode, inStockOnly) {
         products.filter { p ->
             val matchesCat = selectedCategoryId == null || p.categoryId == selectedCategoryId
+            val matchesPrice = maxPriceFilter == null || p.sellingPrice <= maxPriceFilter
             val q = searchQuery.trim().lowercase()
             val matchesQuery = q.isBlank() ||
                 p.nameEn.lowercase().contains(q) ||
@@ -110,7 +117,7 @@ fun CatalogScreen(
                 p.categoryNameEn.lowercase().contains(q) ||
                 p.sku.lowercase().contains(q)
             val matchesStock = !inStockOnly || (p.stock > 0 && p.isAvailable)
-            matchesCat && matchesQuery && matchesStock
+            matchesCat && matchesPrice && matchesQuery && matchesStock
         }.let { list ->
             when (sortMode) {
                 "PRICE_ASC" -> list.sortedBy { it.sellingPrice }
@@ -190,6 +197,15 @@ fun CatalogScreen(
                         label = { Text(strings.inStock) }
                     )
                 }
+                listOf(99, 199, 499).forEach { cap ->
+                    item {
+                        FilterChip(
+                            selected = maxPriceFilter == cap,
+                            onClick = { onMaxPriceChange(if (maxPriceFilter == cap) null else cap) },
+                            label = { Text(if (isTelugu) "≤ ₹$cap" else "Under ₹$cap") }
+                        )
+                    }
+                }
             }
         }
 
@@ -242,6 +258,7 @@ fun ProductDetailScreen(
     language: AppLanguage,
     isWishlisted: Boolean,
     wishlistIds: Set<String> = emptySet(),
+    whatsappNumber: String = "",
     reviewsFlow: Flow<List<ProductReview>>,
     onBack: () -> Unit,
     onRecordViewed: (String) -> Unit,
@@ -251,6 +268,7 @@ fun ProductDetailScreen(
     onProductClick: (String) -> Unit,
     onShareProduct: (Product) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val isTelugu = language == AppLanguage.TELUGU
     val strings = getStrings(language)
     val reviews by reviewsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -531,6 +549,26 @@ fun ProductDetailScreen(
                                 .testTag("detail_buy_now_btn")
                         ) {
                             Text(strings.buyNow)
+                        }
+                    }
+
+                    val cleanWaPhone = whatsappNumber.filter { it.isDigit() }
+                    if (cleanWaPhone.length >= 10) {
+                        OutlinedButton(
+                            onClick = {
+                                val msg = "Hello! I have a question about ${product.nameEn} (SKU: ${product.sku}, Price: ₹${product.sellingPrice.toInt()})."
+                                val url = "https://wa.me/$cleanWaPhone?text=${java.net.URLEncoder.encode(msg, "UTF-8")}"
+                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("detail_ask_whatsapp_btn")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(strings.askOnWhatsapp)
                         }
                     }
                 }

@@ -91,6 +91,7 @@ fun HomeScreen(
     onOpenNotifications: () -> Unit,
     onShareApp: () -> Unit,
     onViewAllCatalog: () -> Unit,
+    onBudgetClick: (Int?) -> Unit = {},
     availableUpdate: AppUpdateInfo? = null,
     onUpdateApp: () -> Unit = {}
 ) {
@@ -106,8 +107,6 @@ fun HomeScreen(
     val bestSellers = products.filter { it.isBestSeller }
         .let { list -> if (products.size <= 2) list.filterNot { it.id in newArrivalIds } else list }
     val recentlyViewed = recentlyViewedIds.mapNotNull { id -> products.firstOrNull { it.id == id } }
-    val recommendations = products.filter { it.isFeaturedOffer || it.computedDiscountPercent() >= 10 }
-        .let { list -> if (products.size <= 2) list.filterNot { it.id in newArrivalIds } else list }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -429,6 +428,53 @@ fun HomeScreen(
             }
         }
 
+        // Budget Store Quick Deals (Under ₹99, ₹199, ₹499)
+        if (products.isNotEmpty()) {
+            item {
+                Column {
+                    SectionHeader(title = strings.budgetStore, actionLabel = strings.viewAll, onAction = onViewAllCatalog)
+                    Spacer(Modifier.height(8.dp))
+                    val budgetTiers = listOf(
+                        Triple(99, if (isTelugu) "₹99 లోపు" else "Under ₹99", Color(0xFF047857)),
+                        Triple(199, if (isTelugu) "₹199 లోపు" else "Under ₹199", Color(0xFF1D4ED8)),
+                        Triple(499, if (isTelugu) "₹499 లోపు" else "Under ₹499", Color(0xFFB45309)),
+                        Triple(null, if (isTelugu) "అన్ని వస్తువులు" else "All Store Items", Color(0xFF7C3AED))
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(budgetTiers) { (cap, label, accent) ->
+                            val count = if (cap == null) products.size else products.count { it.sellingPrice <= cap }
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.12f)),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .width(136.dp)
+                                    .clickable { onBudgetClick(cap) }
+                                    .testTag("budget_card_${cap ?: "all"}")
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = accent
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isTelugu) "$count వస్తువులు" else "$count items",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (products.isEmpty()) {
             item {
                 Card(
@@ -488,19 +534,6 @@ fun HomeScreen(
                     sectionKey = "best_sellers",
                     title = strings.bestSellers,
                     products = bestSellers,
-                    isTelugu = isTelugu,
-                    wishlistIds = wishlistIds,
-                    onViewAll = onViewAllCatalog,
-                    onProductClick = onProductClick,
-                    onToggleWishlist = onToggleWishlist,
-                    onQuickAdd = onQuickAdd
-                )
-            }
-            if (recommendations.isNotEmpty()) {
-                productGridSection(
-                    sectionKey = "recommended",
-                    title = strings.recommendedForYou,
-                    products = recommendations,
                     isTelugu = isTelugu,
                     wishlistIds = wishlistIds,
                     onViewAll = onViewAllCatalog,

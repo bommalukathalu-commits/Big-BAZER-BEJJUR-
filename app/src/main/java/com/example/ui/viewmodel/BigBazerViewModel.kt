@@ -73,6 +73,9 @@ class BigBazerViewModel(
     private val _selectedCategoryId = MutableStateFlow<String?>(null)
     val selectedCategoryId: StateFlow<String?> = _selectedCategoryId.asStateFlow()
 
+    private val _maxPriceFilter = MutableStateFlow<Int?>(null)
+    val maxPriceFilter: StateFlow<Int?> = _maxPriceFilter.asStateFlow()
+
     private val _appliedCoupon = MutableStateFlow<Coupon?>(null)
     val appliedCoupon: StateFlow<Coupon?> = _appliedCoupon.asStateFlow()
 
@@ -263,6 +266,7 @@ class BigBazerViewModel(
     // --- UI Actions ---
     fun setSearchQuery(q: String) { _searchQuery.value = q }
     fun selectCategory(catId: String?) { _selectedCategoryId.value = catId }
+    fun setMaxPriceFilter(maxPrice: Int?) { _maxPriceFilter.value = maxPrice }
     fun clearStatusMessage() { _statusMessage.value = null }
     fun showMessage(msg: String) { _statusMessage.value = msg }
 
@@ -338,6 +342,28 @@ class BigBazerViewModel(
         viewModelScope.launch {
             cartRepo.updateCartQuantity(cartItemId, qty)
                 .onFailure { _statusMessage.value = it.unwrapFirestoreMessage("Cart update failed") }
+        }
+    }
+
+    fun reorderFromOrder(order: Order, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            val activeById = products.value.associateBy { it.id }
+            var addedCount = 0
+            order.itemsSummary.forEach { line ->
+                val prodId = line["productId"]?.toString().orEmpty()
+                val prod = activeById[prodId]
+                val qty = ((line["quantity"] as? Number)?.toInt() ?: 1).coerceAtLeast(1)
+                if (prod != null && prod.stock > 0 && prod.isAvailable) {
+                    cartRepo.addToCart(prod, qty)
+                        .onSuccess { addedCount++ }
+                }
+            }
+            _statusMessage.value = if (addedCount > 0) {
+                "$addedCount item(s) added to cart"
+            } else {
+                "Items from this order are currently out of stock"
+            }
+            if (addedCount > 0) onDone()
         }
     }
 

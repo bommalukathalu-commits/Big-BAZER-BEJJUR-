@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.QrCode2
@@ -45,6 +46,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -153,6 +155,50 @@ fun CartScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        if (shopSettings.freeDeliveryThreshold > 0) {
+            item {
+                val eligibleSubtotal = (summary.subtotal - summary.discountAmount).coerceAtLeast(0.0)
+                val progress = (eligibleSubtotal / shopSettings.freeDeliveryThreshold).toFloat().coerceIn(0f, 1f)
+                val remaining = (shopSettings.freeDeliveryThreshold - eligibleSubtotal).toInt().coerceAtLeast(0)
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (remaining == 0) SuccessGreen.copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocalShipping,
+                                contentDescription = null,
+                                tint = if (remaining == 0) SuccessGreen else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (remaining == 0) strings.freeDeliveryUnlocked
+                                else if (isTelugu) "ఉచిత డెలివరీ కోసం మరో ₹$remaining జోడించండి"
+                                else "Add ₹$remaining more for FREE delivery in Bejjur",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (remaining == 0) SuccessGreen else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            color = if (remaining == 0) SuccessGreen else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                    }
+                }
+            }
         }
 
         items(cartItems, key = { it.id }) { item ->

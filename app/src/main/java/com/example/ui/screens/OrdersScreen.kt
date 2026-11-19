@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -70,7 +71,8 @@ fun OrdersScreen(
     shopSettings: ShopSettings,
     onCancelOrder: (String) -> Unit,
     onRetryUpiPayment: (String, String, String, String) -> Unit,
-    onFormatWhatsAppMessage: (Order) -> String
+    onFormatWhatsAppMessage: (Order) -> String,
+    onReorder: (Order) -> Unit = {}
 ) {
     val context = LocalContext.current
     val strings = getStrings(language)
@@ -153,7 +155,8 @@ fun OrdersScreen(
                                     upiRetryLauncher.launch(Intent.createChooser(intent, "Pay with UPI"))
                                 }
                             }
-                        }
+                        },
+                        onReorder = { onReorder(order) }
                     )
                 }
             }
@@ -188,7 +191,8 @@ private fun OrderCard(
     onInvoice: () -> Unit,
     onWhatsApp: () -> Unit,
     onCancel: () -> Unit,
-    onRetryPayment: () -> Unit
+    onRetryPayment: () -> Unit,
+    onReorder: () -> Unit
 ) {
     val dateStr = order.createdAt?.toDate()?.let {
         SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(it)
@@ -267,14 +271,31 @@ private fun OrderCard(
                     Spacer(Modifier.width(4.dp))
                     Text("WhatsApp", maxLines = 1)
                 }
-                if (order.paymentMethod == "UPI" && order.paymentStatus != "PAID" && order.orderStatus !in listOf("CANCELLED", "DELIVERED")) {
-                    Button(onClick = onRetryPayment, modifier = Modifier.weight(1f)) {
-                        Text(strings.retryPayment, maxLines = 1)
-                    }
+                OutlinedButton(
+                    onClick = onReorder,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("reorder_btn_${order.id}")
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(strings.reorderItems, maxLines = 1)
                 }
-                if (order.orderStatus in listOf("NEW", "CONFIRMED")) {
-                    TextButton(onClick = onCancel) {
-                        Text(strings.cancelOrder, color = ErrorRed)
+            }
+
+            if ((order.paymentMethod == "UPI" && order.paymentStatus != "PAID" && order.orderStatus !in listOf("CANCELLED", "DELIVERED")) ||
+                order.orderStatus in listOf("NEW", "CONFIRMED")
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (order.paymentMethod == "UPI" && order.paymentStatus != "PAID" && order.orderStatus !in listOf("CANCELLED", "DELIVERED")) {
+                        Button(onClick = onRetryPayment, modifier = Modifier.weight(1f)) {
+                            Text(strings.retryPayment, maxLines = 1)
+                        }
+                    }
+                    if (order.orderStatus in listOf("NEW", "CONFIRMED")) {
+                        TextButton(onClick = onCancel) {
+                            Text(strings.cancelOrder, color = ErrorRed)
+                        }
                     }
                 }
             }

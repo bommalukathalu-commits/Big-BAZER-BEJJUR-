@@ -200,6 +200,7 @@ private fun AuthenticatedStoreApp(
     val userTickets by vm.userTickets.collectAsStateWithLifecycle()
     val searchQuery by vm.searchQuery.collectAsStateWithLifecycle()
     val selectedCategoryId by vm.selectedCategoryId.collectAsStateWithLifecycle()
+    val maxPriceFilter by vm.maxPriceFilter.collectAsStateWithLifecycle()
 
     // Admin streams
     val analytics by vm.adminAnalytics.collectAsStateWithLifecycle()
@@ -306,6 +307,7 @@ private fun AuthenticatedStoreApp(
                     language = language,
                     isWishlisted = wishlist.any { it.productId == product.id },
                     wishlistIds = wishlist.map { it.productId }.toSet(),
+                    whatsappNumber = shopSettings.whatsappNumber,
                     reviewsFlow = vm.observeReviews(product.id),
                     onBack = { overlay = OverlayRoute.None },
                     onRecordViewed = vm::recordRecentlyViewed,
@@ -497,6 +499,12 @@ private fun AuthenticatedStoreApp(
                         onShareApp = openAppShareDialog,
                         onViewAllCatalog = {
                             vm.selectCategory(null)
+                            vm.setMaxPriceFilter(null)
+                            currentTab = MainTab.CATALOG
+                        },
+                        onBudgetClick = { cap ->
+                            vm.selectCategory(null)
+                            vm.setMaxPriceFilter(cap)
                             currentTab = MainTab.CATALOG
                         },
                         availableUpdate = availableUpdate,
@@ -509,11 +517,13 @@ private fun AuthenticatedStoreApp(
                         language = language,
                         searchQuery = searchQuery,
                         selectedCategoryId = selectedCategoryId,
+                        maxPriceFilter = maxPriceFilter,
                         categories = categories,
                         products = products,
                         wishlist = wishlist,
                         onSearchChange = vm::setSearchQuery,
                         onCategorySelect = vm::selectCategory,
+                        onMaxPriceChange = vm::setMaxPriceFilter,
                         onProductClick = { pid -> overlay = OverlayRoute.ProductDetail(pid) },
                         onToggleWishlist = vm::toggleWishlist,
                         onQuickAdd = { prod -> vm.addToCart(prod) }
@@ -539,7 +549,12 @@ private fun AuthenticatedStoreApp(
                         shopSettings = shopSettings,
                         onCancelOrder = vm::cancelOrder,
                         onRetryUpiPayment = vm::updateOrderPaymentOutcome,
-                        onFormatWhatsAppMessage = vm::formatWhatsAppMessage
+                        onFormatWhatsAppMessage = vm::formatWhatsAppMessage,
+                        onReorder = { order ->
+                            vm.reorderFromOrder(order) {
+                                currentTab = MainTab.CART
+                            }
+                        }
                     )
                     MainTab.ACCOUNT -> AccountScreen(
                         language = language,
