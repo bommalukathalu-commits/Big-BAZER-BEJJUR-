@@ -28,6 +28,8 @@ import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.data.repository.StoreRepository
 import com.example.data.util.LocalNotificationHelper
 import com.example.data.util.ProcessedImagePayload
+import com.example.data.util.isNonRetryableFirestoreError
+import com.example.data.util.isQuotaExceededError
 import com.example.data.util.unwrapFirestoreMessage
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.retryWhen
@@ -86,6 +89,11 @@ class BigBazerViewModel(
     private val _cloudDiagnostics = MutableStateFlow<CloudDiagnosticsSummary?>(null)
     val cloudDiagnostics: StateFlow<CloudDiagnosticsSummary?> = _cloudDiagnostics.asStateFlow()
 
+    private val _isQuotaExceeded = MutableStateFlow(false)
+    val isQuotaExceeded: StateFlow<Boolean> = _isQuotaExceeded.asStateFlow()
+
+    private val _adminConsoleOpen = MutableStateFlow(false)
+
     private val seenNotificationIds = mutableSetOf<String>()
     private val inFlightCartKeys = mutableSetOf<String>()
 
@@ -100,28 +108,32 @@ class BigBazerViewModel(
         }
     }
 
+    fun setAdminConsoleOpen(open: Boolean) {
+        _adminConsoleOpen.value = open
+    }
+
     val userProfile: StateFlow<UserProfile?> = storeRepo.observeUserProfile(currentUserId)
-        .resilientStream("profile", null)
+        .resilientStream("profile", null) { storeRepo.getCachedUserProfile(currentUserId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
 
     val categories: StateFlow<List<Category>> = storeRepo.observeCategories()
-        .resilientStream("categories", emptyList())
+        .resilientStream("categories", emptyList()) { storeRepo.getCachedCategories() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val products: StateFlow<List<Product>> = storeRepo.observeActiveProducts()
-        .resilientStream("products", emptyList())
+        .resilientStream("products", emptyList()) { storeRepo.getCachedActiveProducts() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val banners: StateFlow<List<Banner>> = storeRepo.observeBanners()
-        .resilientStream("banners", emptyList())
+        .resilientStream("banners", emptyList()) { storeRepo.getCachedBanners() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val coupons: StateFlow<List<Coupon>> = storeRepo.observeCoupons()
-        .resilientStream("coupons", emptyList())
+        .resilientStream("coupons", emptyList()) { storeRepo.getCachedCoupons() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val shopSettings: StateFlow<ShopSettings> = storeRepo.observeShopSettings()
-        .resilientStream("settings", ShopSettings())
+        .resilientStream("settings", ShopSettings()) { storeRepo.getCachedShopSettings() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), ShopSettings())
 
     val cartItems: StateFlow<List<CartItem>> = cartRepo.observeCart(currentUserId)
@@ -189,46 +201,49 @@ class BigBazerViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), CheckoutSummary())
 
-    // --- Admin-only Reactive Streams (strictly gated on isAdmin == true) ---
+    // --- Admin-only Reactive Streams (strictly gated on isAdmin && adminConsoleOpen to save Firestore quota) ---
+    private val adminActive: Flow<Boolean> = combine(isAdmin, _adminConsoleOpen) { admin, open -> admin && open }
+        .distinctUntilChanged()
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val allOrders: StateFlow<List<Order>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllOrders().resilientStream("allOrders", emptyList())
+    val allOrders: StateFlow<List<Order>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeAllOrders().resilientStream("allOrders", emptyList()) { adminRepo.getCachedAllOrders() }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val allPayments: StateFlow<List<PaymentRecord>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllPayments().resilientStream("allPayments", emptyList())
+    val allPayments: StateFlow<List<PaymentRecord>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeAllPayments().resilientStream("allPayments", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val allCustomers: StateFlow<List<UserProfile>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllCustomers().resilientStream("allCustomers", emptyList())
+    val allCustomers: StateFlow<List<UserProfile>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeAllCustomers().resilientStream("allCustomers", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val allTickets: StateFlow<List<SupportTicket>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllTickets().resilientStream("allTickets", emptyList())
+    val allTickets: StateFlow<List<SupportTicket>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeAllTickets().resilientStream("allTickets", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val deletedProducts: StateFlow<List<DeletedProduct>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeDeletedProducts().resilientStream("deletedProducts", emptyList())
+    val deletedProducts: StateFlow<List<DeletedProduct>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeDeletedProducts().resilientStream("deletedProducts", emptyList()) { adminRepo.getCachedDeletedProducts() }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val backupRecords: StateFlow<List<BackupRecord>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeBackupRecords().resilientStream("backupRecords", emptyList())
+    val backupRecords: StateFlow<List<BackupRecord>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeBackupRecords().resilientStream("backupRecords", emptyList()) { adminRepo.getCachedBackupRecords() }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val auditLogs: StateFlow<List<AuditLog>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAuditLogs().resilientStream("auditLogs", emptyList())
+    val auditLogs: StateFlow<List<AuditLog>> = adminActive.flatMapLatest { active ->
+        if (active) adminRepo.observeAuditLogs().resilientStream("auditLogs", emptyList()) { adminRepo.getCachedAuditLogs() }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
@@ -643,9 +658,11 @@ class BigBazerViewModel(
             _isAdmin.value = adminResult.getOrDefault(_isAdmin.value)
             val summary = adminRepo.checkCloudDiagnostics()
             _cloudDiagnostics.value = summary
+            _isQuotaExceeded.value = summary.error.contains("50,000", ignoreCase = true) ||
+                summary.error.contains("RESOURCE_EXHAUSTED", ignoreCase = true)
             _isBusy.value = false
             _statusMessage.value = if (summary.error.isNotBlank()) {
-                "Server check error: ${summary.error}"
+                "Server check: ${summary.error}"
             } else {
                 "Server: ${summary.activeProductsOnServer} active, ${summary.hiddenProductsOnServer} hidden, ${summary.recycleBinOnServer} bin, ${summary.backupsOnServer} backups"
             }
@@ -686,6 +703,7 @@ class BigBazerViewModel(
                     onBackupReady(record)
                 }
                 .onFailure {
+                    if (it.isQuotaExceededError()) _isQuotaExceeded.value = true
                     _isBusy.value = false
                     _statusMessage.value = it.unwrapFirestoreMessage("Backup failed — check connection & sign-in")
                 }
@@ -704,6 +722,7 @@ class BigBazerViewModel(
                     _statusMessage.value = "Restored $count products from backup"
                 }
                 .onFailure {
+                    if (it.isQuotaExceededError()) _isQuotaExceeded.value = true
                     _isBusy.value = false
                     _statusMessage.value = it.unwrapFirestoreMessage("Restore failed")
                 }
@@ -718,23 +737,35 @@ class BigBazerViewModel(
         }
     }
 
-    private fun <T> Flow<T>.resilientStream(name: String, fallback: T): Flow<T> =
+    private fun <T> Flow<T>.resilientStream(
+        name: String,
+        fallback: T,
+        cacheFallback: (suspend () -> T)? = null
+    ): Flow<T> =
         this.retryWhen { cause, attempt ->
             if (cause is CancellationException && cause.cause == null) {
                 false
-            } else if (attempt < 5L) {
+            } else if (cause.isNonRetryableFirestoreError()) {
                 handleStreamError(name, cause)
-                delay(1000L * (attempt + 1L))
+                false
+            } else if (attempt < 3L) {
+                handleStreamError(name, cause)
+                delay(1200L * (attempt + 1L))
                 true
             } else {
                 false
             }
         }.catch { e ->
             handleStreamError(name, e)
+            val quotaHit = e.isQuotaExceededError()
+            if (quotaHit) {
+                _isQuotaExceeded.value = true
+            }
             if (name == "products" || name == "backupRecords" || name == "deletedProducts") {
                 _statusMessage.value = e.unwrapFirestoreMessage("Could not load $name — check connection")
             }
-            emit(fallback)
+            val cached = runCatching { cacheFallback?.invoke() }.getOrNull()
+            emit(cached ?: fallback)
         }
 
     private fun handleStreamError(name: String, error: Throwable) {

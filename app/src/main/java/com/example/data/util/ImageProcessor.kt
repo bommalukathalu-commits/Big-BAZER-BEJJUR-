@@ -15,6 +15,7 @@ import coil.fetch.Fetcher
 import coil.fetch.SourceResult
 import coil.request.Options
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.util.Collections
 import okio.Buffer
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -248,25 +250,26 @@ private class CloudImageFetcher(
     companion object {
         // Limit parallel multi-hundred-KB Firestore image fetches so mobile networks don't time out
         private val fetchSemaphore = Semaphore(permits = 4)
+        @Volatile
+        private var quotaPausedUntilMs: Long = 0L
+        private val missingImageIds: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
     }
 
     override suspend fun fetch(): FetchResult {
-        // 1. Serve immediately from local disk cache when available
+        // 1. Serve immediately from local disk cache (0 Firestore reads)
         val cachedBytes = withContext(Dispatchers.IO) {
             ImageProcessor.getCachedCloudImageBytes(context, imageId)
         }
         if (cachedBytes != null && cachedBytes.isNotEmpty()) {
-            val buffer = Buffer().write(cachedBytes)
             return SourceResult(
-                source = ImageSource(buffer, context),
+                source = ImageSource(Buffer().write(cachedBytes), context),
                 mimeType = "image/jpeg",
                 dataSource = DataSource.DISK
             )
         }
 
-        // 2. Fetch from Firestore with concurrency control, retry + server/cache fallbacks
+        // 2. Fetch via Firestore offline cache first, then server only if needed & quota isn't paused
         return fetchSemaphore.withPermit {
-            // Re-check disk cache in case another simultaneous request just populated it
             val recheck = withContext(Dispatchers.IO) {
                 ImageProcessor.getCachedCloudImageBytes(context, imageId)
             }
@@ -279,45 +282,57 @@ private class CloudImageFetcher(
             }
 
             val docRef = db.collection("productImages").document(imageId)
-            var lastError: Exception? = null
-            var snapshot = try {
-                docRef.get().await()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                lastError = e
-                null
-            }
 
-            // If default read missed/failed, retry up to 2 more times with backoff
-            if (snapshot == null || !snapshot.exists()) {
-                for (attempt in 1..2) {
-                    delay(attempt * 350L)
-                    snapshot = try {
-                        if (snapshot != null && !snapshot.exists()) {
-                            // Local cache may have cached a miss; force server read
-                            docRef.get(Source.SERVER).await()
+            // Check Firestore SQLite cache first (0 billed server reads)
+            var snapshot = runCatching { docRef.get(Source.CACHE).await() }
+                .getOrNull()
+                ?.takeIf { it.exists() }
+
+            var lastError: Exception? = null
+            if (snapshot == null) {
+                val now = System.currentTimeMillis()
+                if (now < quotaPausedUntilMs) {
+                    throw IllegalStateException("Firestore daily read quota paused — cached image unavailable")
+                }
+                if (imageId in missingImageIds) {
+                    throw IllegalStateException("Cloud image $imageId not found")
+                }
+
+                // Try server at most twice ONLY for transient network errors; never retry quota/auth/not-found
+                for (attempt in 0..1) {
+                    if (attempt > 0) delay(450L)
+                    try {
+                        val fetched = docRef.get(Source.SERVER).await()
+                        if (fetched.exists()) {
+                            snapshot = fetched
                         } else {
-                            docRef.get().await()
+                            missingImageIds.add(imageId)
                         }
+                        break
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         lastError = e
-                        null
+                        val ffe = generateSequence(e as Throwable) { it.cause }
+                            .filterIsInstance<FirebaseFirestoreException>()
+                            .firstOrNull()
+                        when (ffe?.code) {
+                            FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED -> {
+                                quotaPausedUntilMs = System.currentTimeMillis() + 60_000L
+                                break
+                            }
+                            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+                            FirebaseFirestoreException.Code.UNAUTHENTICATED,
+                            FirebaseFirestoreException.Code.NOT_FOUND -> break
+                            else -> Unit // Retry once on transient network error
+                        }
                     }
-                    if (snapshot != null && snapshot.exists()) break
                 }
-            }
-
-            // Last-chance offline cache lookup if network failed
-            if (snapshot == null) {
-                snapshot = runCatching { docRef.get(Source.CACHE).await() }.getOrNull()
             }
 
             if (snapshot == null) {
                 lastError?.let { handleFirestoreError(it, OperationType.GET, docRef.path) }
-                throw lastError ?: IllegalStateException("Cloud image $imageId fetch failed")
+                throw lastError ?: IllegalStateException("Cloud image $imageId not found")
             }
 
             val base64 = snapshot.getString("base64Data")?.trim()
@@ -331,9 +346,8 @@ private class CloudImageFetcher(
                 ImageProcessor.cacheCloudImageBytes(context, imageId, bytes)
             }
 
-            val buffer = Buffer().write(bytes)
             SourceResult(
-                source = ImageSource(buffer, context),
+                source = ImageSource(Buffer().write(bytes), context),
                 mimeType = mimeType,
                 dataSource = DataSource.NETWORK
             )

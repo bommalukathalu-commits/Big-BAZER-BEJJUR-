@@ -60,9 +60,33 @@ fun handleFirestoreError(
     return jsonString
 }
 
+fun Throwable.isQuotaExceededError(): Boolean {
+    val firestoreError = generateSequence(this) { it.cause }
+        .filterIsInstance<FirebaseFirestoreException>()
+        .firstOrNull()
+    return firestoreError?.code == FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED
+}
+
+fun Throwable.isNonRetryableFirestoreError(): Boolean {
+    val firestoreError = generateSequence(this) { it.cause }
+        .filterIsInstance<FirebaseFirestoreException>()
+        .firstOrNull()
+    return when (firestoreError?.code) {
+        FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED,
+        FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        FirebaseFirestoreException.Code.UNAUTHENTICATED,
+        FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+        FirebaseFirestoreException.Code.INVALID_ARGUMENT -> true
+        else -> false
+    }
+}
+
 fun Throwable.unwrapFirestoreMessage(fallback: String): String {
     val firestoreError = generateSequence(this) { it.cause }
         .filterIsInstance<FirebaseFirestoreException>()
         .firstOrNull()
+    if (firestoreError?.code == FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED) {
+        return "Daily free Firebase read limit (50,000/day) reached. Resets at 1:30 PM IST."
+    }
     return firestoreError?.message ?: this.localizedMessage ?: fallback
 }

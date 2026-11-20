@@ -421,30 +421,34 @@ fun AdminBackupsSettingsTab(
                                 color = ErrorRed,
                                 style = MaterialTheme.typography.bodySmall
                             )
-                        } else {
                             Text(
-                                "Active Products: ${cloudDiagnostics.activeProductsOnServer} | Hidden Products: ${cloudDiagnostics.hiddenProductsOnServer}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium
+                                "Device Cache Counts (until server quota resets):",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                "Images: ${cloudDiagnostics.imagesOnServer} | Recycle Bin: ${cloudDiagnostics.recycleBinOnServer}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                "Cloud Backups: ${cloudDiagnostics.backupsOnServer} | Audit Logs: ${cloudDiagnostics.auditLogsOnServer}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            if (cloudDiagnostics.hiddenProductsOnServer > 0) {
-                                Button(
-                                    onClick = onRecoverHiddenProducts,
-                                    enabled = !isBusy,
-                                    modifier = Modifier.fillMaxWidth().testTag("recover_hidden_products_btn")
-                                ) {
-                                    Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Recover ${cloudDiagnostics.hiddenProductsOnServer} Hidden Products")
-                                }
+                        }
+                        Text(
+                            "Active Products: ${cloudDiagnostics.activeProductsOnServer} | Hidden Products: ${cloudDiagnostics.hiddenProductsOnServer}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Images: ${cloudDiagnostics.imagesOnServer} | Recycle Bin: ${cloudDiagnostics.recycleBinOnServer}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            "Cloud Backups: ${cloudDiagnostics.backupsOnServer} | Audit Logs: ${cloudDiagnostics.auditLogsOnServer}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        if (cloudDiagnostics.error.isBlank() && cloudDiagnostics.hiddenProductsOnServer > 0) {
+                            Button(
+                                onClick = onRecoverHiddenProducts,
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth().testTag("recover_hidden_products_btn")
+                            ) {
+                                Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Recover ${cloudDiagnostics.hiddenProductsOnServer} Hidden Products")
                             }
                         }
                     }

@@ -21,6 +21,7 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,8 @@ class StoreRepository(private val db: FirebaseFirestore) {
 
     companion object {
         const val BOOTSTRAP_OWNER_EMAIL = "bommalukathalu@gmail.com"
+        @Volatile
+        private var defaultsBootstrapped = false
 
         val DEFAULT_CATEGORIES = listOf(
             Triple("cat_toys", "Toys", "ఆటబొమ్మలు") to "toys",
@@ -71,15 +74,18 @@ class StoreRepository(private val db: FirebaseFirestore) {
         val userRef = db.collection("users").document(uid)
 
         try {
-            val snap = userRef.get().await()
-            if (!snap.exists()) {
-                val profile = UserProfile(
-                    userId = uid,
-                    displayName = user.displayName ?: email.substringBefore("@").ifBlank { "Customer" },
-                    email = email,
-                    photoUrl = user.photoUrl?.toString().orEmpty()
-                )
-                userRef.set(profile.toCreateMap()).await()
+            val cachedUser = runCatching { userRef.get(Source.CACHE).await() }.getOrNull()
+            if (cachedUser == null || !cachedUser.exists()) {
+                val snap = userRef.get().await()
+                if (!snap.exists()) {
+                    val profile = UserProfile(
+                        userId = uid,
+                        displayName = user.displayName ?: email.substringBefore("@").ifBlank { "Customer" },
+                        email = email,
+                        photoUrl = user.photoUrl?.toString().orEmpty()
+                    )
+                    userRef.set(profile.toCreateMap()).await()
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -91,30 +97,40 @@ class StoreRepository(private val db: FirebaseFirestore) {
         val adminRef = db.collection("admins").document(uid)
         if (isVerifiedOwner) {
             try {
-                val adminSnap = adminRef.get().await()
-                if (!adminSnap.exists()) {
-                    adminRef.set(
-                        mapOf(
-                            "adminId" to uid,
-                            "email" to email,
-                            "displayName" to (user.displayName ?: "Owner"),
-                            "role" to "owner",
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
-                    ).await()
+                val cachedAdmin = runCatching { adminRef.get(Source.CACHE).await() }.getOrNull()
+                if (cachedAdmin == null || !cachedAdmin.exists()) {
+                    val adminSnap = adminRef.get().await()
+                    if (!adminSnap.exists()) {
+                        adminRef.set(
+                            mapOf(
+                                "adminId" to uid,
+                                "email" to email,
+                                "displayName" to (user.displayName ?: "Owner"),
+                                "role" to "owner",
+                                "createdAt" to FieldValue.serverTimestamp()
+                            )
+                        ).await()
+                    }
                 }
-                bootstrapStoreDefaultsIfNeeded()
+                if (!defaultsBootstrapped) {
+                    bootstrapStoreDefaultsIfNeeded()
+                }
                 return@runCatching true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 handleFirestoreError(e, OperationType.WRITE, adminRef.path)
+                return@runCatching true
             }
         }
 
         return@runCatching try {
-            val adminSnap = adminRef.get().await()
-            adminSnap.exists()
+            val cachedAdmin = runCatching { adminRef.get(Source.CACHE).await() }.getOrNull()
+            if (cachedAdmin != null && cachedAdmin.exists()) {
+                true
+            } else {
+                adminRef.get().await().exists()
+            }
         } catch (_: Exception) {
             isVerifiedOwner
         }
@@ -122,60 +138,67 @@ class StoreRepository(private val db: FirebaseFirestore) {
 
     suspend fun bootstrapStoreDefaultsIfNeeded() {
         try {
-            val catsSnap = db.collection("categories").limit(1).get().await()
-            if (catsSnap.isEmpty) {
-                val batch = db.batch()
-                DEFAULT_CATEGORIES.forEachIndexed { index, (triple, icon) ->
-                    val docRef = db.collection("categories").document(triple.first)
-                    batch.set(
-                        docRef,
-                        mapOf(
-                            "nameEn" to triple.second,
-                            "nameTe" to triple.third,
-                            "iconKey" to icon,
-                            "sortOrder" to (index + 1).toLong(),
-                            "isActive" to true,
-                            "createdAt" to FieldValue.serverTimestamp(),
-                            "updatedAt" to FieldValue.serverTimestamp()
+            val cachedCats = runCatching { db.collection("categories").limit(1).get(Source.CACHE).await() }.getOrNull()
+            if (cachedCats == null || cachedCats.isEmpty) {
+                val catsSnap = db.collection("categories").limit(1).get().await()
+                if (catsSnap.isEmpty) {
+                    val batch = db.batch()
+                    DEFAULT_CATEGORIES.forEachIndexed { index, (triple, icon) ->
+                        val docRef = db.collection("categories").document(triple.first)
+                        batch.set(
+                            docRef,
+                            mapOf(
+                                "nameEn" to triple.second,
+                                "nameTe" to triple.third,
+                                "iconKey" to icon,
+                                "sortOrder" to (index + 1).toLong(),
+                                "isActive" to true,
+                                "createdAt" to FieldValue.serverTimestamp(),
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
                         )
-                    )
+                    }
+                    batch.commit().await()
                 }
-                batch.commit().await()
             }
             val shopRef = db.collection("settings").document("shop")
-            val shopSnap = shopRef.get().await()
-            if (!shopSnap.exists()) {
-                shopRef.set(
-                    mapOf(
-                        "settingType" to "shop",
-                        "shopName" to "BIG BAZER BEJJUR",
-                        "whatsappNumber" to "919999999999",
-                        "upiId" to "",
-                        "upiMerchantName" to "BIG BAZER BEJJUR",
-                        "supportPhone" to "9999999999",
-                        "supportEmail" to "",
-                        "shopAddress" to "Main Road, Bejjur, Komaram Bheem Asifabad, Telangana - 504299",
-                        "paymentGatewayKeyId" to "",
-                        "freeDeliveryThreshold" to 499.0,
-                        "baseDeliveryCharge" to 30.0,
-                        "serviceableMandals" to "Bejjur, Penchikalpet, Chintalamanepally, Kouthala, Dahegaon, Sirpur T",
-                        "estimatedDeliveryDays" to "Same day / 1-2 Days",
-                        "autoBackupEnabled" to true,
-                        "backupRetentionDays" to 30L,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-            } else {
-                val existingEmail = shopSnap.getString("supportEmail").orEmpty()
-                if (existingEmail.equals(BOOTSTRAP_OWNER_EMAIL, ignoreCase = true)) {
-                    shopRef.update(
+            val cachedShop = runCatching { shopRef.get(Source.CACHE).await() }.getOrNull()
+            if (cachedShop == null || !cachedShop.exists()) {
+                val shopSnap = shopRef.get().await()
+                if (!shopSnap.exists()) {
+                    shopRef.set(
                         mapOf(
+                            "settingType" to "shop",
+                            "shopName" to "BIG BAZER BEJJUR",
+                            "whatsappNumber" to "919999999999",
+                            "upiId" to "",
+                            "upiMerchantName" to "BIG BAZER BEJJUR",
+                            "supportPhone" to "9999999999",
                             "supportEmail" to "",
+                            "shopAddress" to "Main Road, Bejjur, Komaram Bheem Asifabad, Telangana - 504299",
+                            "paymentGatewayKeyId" to "",
+                            "freeDeliveryThreshold" to 499.0,
+                            "baseDeliveryCharge" to 30.0,
+                            "serviceableMandals" to "Bejjur, Penchikalpet, Chintalamanepally, Kouthala, Dahegaon, Sirpur T",
+                            "estimatedDeliveryDays" to "Same day / 1-2 Days",
+                            "autoBackupEnabled" to true,
+                            "backupRetentionDays" to 30L,
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
                     ).await()
+                } else {
+                    val existingEmail = shopSnap.getString("supportEmail").orEmpty()
+                    if (existingEmail.equals(BOOTSTRAP_OWNER_EMAIL, ignoreCase = true)) {
+                        shopRef.update(
+                            mapOf(
+                                "supportEmail" to "",
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        ).await()
+                    }
                 }
             }
+            defaultsBootstrapped = true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -312,10 +335,14 @@ class StoreRepository(private val db: FirebaseFirestore) {
 
     fun observeReviews(productId: String): Flow<List<ProductReview>> =
         db.collection("products").document(productId).collection("reviews")
+            .limit(50)
             .snapshots()
             .map { snap ->
-                snap.toObjects(ProductReview::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(ProductReview::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "products/$productId/reviews")
@@ -566,15 +593,53 @@ class StoreRepository(private val db: FirebaseFirestore) {
     fun observeUserNotifications(userId: String): Flow<List<AppNotification>> =
         db.collection("notifications")
             .whereIn("targetUserId", listOf(userId, "ALL"))
+            .limit(30)
             .snapshots()
             .map { snap ->
-                snap.toObjects(AppNotification::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(AppNotification::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "notifications")
                 throw error
             }
+
+    suspend fun getCachedCategories(): List<Category> = runCatching {
+        db.collection("categories").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(Category::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedBy { it.sortOrder }
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedActiveProducts(): List<Product> = runCatching {
+        db.collection("products").whereEqualTo("isDeleted", false).get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(Product::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedBanners(): List<Banner> = runCatching {
+        db.collection("banners").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(Banner::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedBy { it.sortOrder }
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedCoupons(): List<Coupon> = runCatching {
+        db.collection("coupons").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(Coupon::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedShopSettings(): ShopSettings = runCatching {
+        db.collection("settings").document("shop").get(Source.CACHE).await()
+            .toObject(ShopSettings::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) ?: ShopSettings()
+    }.getOrDefault(ShopSettings())
+
+    suspend fun getCachedUserProfile(userId: String): UserProfile? = runCatching {
+        db.collection("users").document(userId).get(Source.CACHE).await()
+            .toObject(UserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+    }.getOrNull()
 
     suspend fun markNotificationRead(notificationId: String) {
         try {

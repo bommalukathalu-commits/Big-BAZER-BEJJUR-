@@ -4,10 +4,13 @@ import android.app.Application
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Category
@@ -19,6 +22,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -26,6 +30,7 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -212,9 +217,14 @@ private fun AuthenticatedStoreApp(
     val backupRecords by vm.backupRecords.collectAsStateWithLifecycle()
     val auditLogs by vm.auditLogs.collectAsStateWithLifecycle()
     val cloudDiagnostics by vm.cloudDiagnostics.collectAsStateWithLifecycle()
+    val isQuotaExceeded by vm.isQuotaExceeded.collectAsStateWithLifecycle()
 
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var overlay by remember { mutableStateOf<OverlayRoute>(OverlayRoute.None) }
+
+    LaunchedEffect(overlay) {
+        vm.setAdminConsoleOpen(overlay == OverlayRoute.AdminPanel)
+    }
     var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
     var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -473,7 +483,25 @@ private fun AuthenticatedStoreApp(
                     }
                 }
 
-                when (currentTab) {
+                Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    if (isQuotaExceeded) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth().statusBarsPadding()
+                        ) {
+                            Text(
+                                text = if (language == AppLanguage.TELUGU) {
+                                    "Firebase ఉచిత రోజువారీ రీడ్ లిమిట్ (50,000/day) నిండింది. మీ డేటా సేఫ్‌గానే ఉంది — మధ్యాహ్నం 1:30 PM IST కి తిరిగి లోడ్ అవుతుంది."
+                                } else {
+                                    "Firebase daily free read limit (50,000/day) reached. Your data is safe — resets daily at 1:30 PM IST."
+                                },
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                    when (currentTab) {
                     MainTab.HOME -> HomeScreen(
                         language = language,
                         searchQuery = searchQuery,
@@ -606,6 +634,7 @@ private fun AuthenticatedStoreApp(
                         },
                         onSignOut = onSignOut
                     )
+                }
                 }
             }
         }

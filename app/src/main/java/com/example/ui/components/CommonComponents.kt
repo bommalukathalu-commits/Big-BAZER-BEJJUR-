@@ -141,31 +141,18 @@ fun CloudProductImage(
                     }
                 },
                 error = {
-                    LaunchedEffect(cleanUrl, retryAttempt) {
-                        if (retryAttempt < 3) {
-                            delay(1200L * (retryAttempt + 1))
-                            retryAttempt++
-                        }
-                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { retryAttempt++ },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (retryAttempt < 3) {
-                            CircularProgressIndicator(
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(22.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.BrokenImage,
-                                contentDescription = contentDescription,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.BrokenImage,
+                            contentDescription = contentDescription,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
                     }
                 }
             )

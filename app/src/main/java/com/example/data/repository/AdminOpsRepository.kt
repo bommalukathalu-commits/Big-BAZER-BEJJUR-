@@ -12,11 +12,16 @@ import com.example.data.model.SupportTicket
 import com.example.data.model.UserProfile
 import com.example.data.util.OperationType
 import com.example.data.util.handleFirestoreError
+import com.example.data.util.isQuotaExceededError
+import com.example.data.util.unwrapFirestoreMessage
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
@@ -70,11 +75,13 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeAllOrders(): Flow<List<Order>> =
         db.collection("orders")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(100)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
                     runCatching { doc.toObject(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
-                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "orders")
@@ -83,11 +90,13 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeAllPayments(): Flow<List<PaymentRecord>> =
         db.collection("payments")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(100)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
                     runCatching { doc.toObject(PaymentRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
-                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "payments")
@@ -96,6 +105,7 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeAllCustomers(): Flow<List<UserProfile>> =
         db.collection("users")
+            .limit(100)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
@@ -109,11 +119,13 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeAllTickets(): Flow<List<SupportTicket>> =
         db.collection("supportTickets")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(50)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
                     runCatching { doc.toObject(SupportTicket::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
-                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "supportTickets")
@@ -122,6 +134,7 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeDeletedProducts(): Flow<List<DeletedProduct>> =
         db.collection("deletedProducts")
+            .limit(100)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
@@ -135,11 +148,13 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeBackupRecords(): Flow<List<BackupRecord>> =
         db.collection("backupRecords")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(15)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
                     runCatching { doc.toObject(BackupRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
-                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "backupRecords")
@@ -148,16 +163,42 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     fun observeAuditLogs(): Flow<List<AuditLog>> =
         db.collection("auditLogs")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(40)
             .snapshots()
             .map { snap ->
                 snap.documents.mapNotNull { doc ->
                     runCatching { doc.toObject(AuditLog::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
-                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "auditLogs")
                 throw error
             }
+
+    suspend fun getCachedDeletedProducts(): List<DeletedProduct> = runCatching {
+        db.collection("deletedProducts").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(DeletedProduct::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedByDescending { it.deletedAt?.seconds ?: 0L }
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedBackupRecords(): List<BackupRecord> = runCatching {
+        db.collection("backupRecords").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(BackupRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedByDescending { it.createdAt?.seconds ?: 0L }.take(15)
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedAuditLogs(): List<AuditLog> = runCatching {
+        db.collection("auditLogs").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(AuditLog::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedByDescending { it.createdAt?.seconds ?: 0L }.take(40)
+    }.getOrDefault(emptyList())
+
+    suspend fun getCachedAllOrders(): List<Order> = runCatching {
+        db.collection("orders").get(Source.CACHE).await().documents.mapNotNull { doc ->
+            runCatching { doc.toObject(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+        }.sortedByDescending { it.createdAt?.seconds ?: 0L }
+    }.getOrDefault(emptyList())
 
     suspend fun updateOrderStatus(
         order: Order,
@@ -435,17 +476,15 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
     suspend fun checkCloudDiagnostics(): CloudDiagnosticsSummary {
         val email = auth.currentUser?.email.orEmpty()
         return try {
-            val allProds = db.collection("products").get(Source.SERVER).await()
-            val active = allProds.documents.count { it.getBoolean("isDeleted") == false }
-            val hidden = allProds.size() - active
-            val deleted = db.collection("deletedProducts").get(Source.SERVER).await().size()
-            val backups = db.collection("backupRecords").get(Source.SERVER).await().size()
-            val logs = db.collection("auditLogs").get(Source.SERVER).await().size()
+            val totalProds = db.collection("products").count().get(AggregateSource.SERVER).await().count.toInt()
+            val active = db.collection("products").whereEqualTo("isDeleted", false).count().get(AggregateSource.SERVER).await().count.toInt()
+            val hidden = (totalProds - active).coerceAtLeast(0)
+            val deleted = db.collection("deletedProducts").count().get(AggregateSource.SERVER).await().count.toInt()
+            val backups = db.collection("backupRecords").count().get(AggregateSource.SERVER).await().count.toInt()
+            val logs = db.collection("auditLogs").count().get(AggregateSource.SERVER).await().count.toInt()
             val imagesCount = runCatching {
-                db.collection("productImages").get(Source.SERVER).await().size()
-            }.getOrElse {
-                allProds.documents.sumOf { (it.get("imageIds") as? List<*>)?.size ?: 0 }
-            }
+                db.collection("productImages").count().get(AggregateSource.SERVER).await().count.toInt()
+            }.getOrDefault(0)
             CloudDiagnosticsSummary(
                 signedInEmail = email,
                 activeProductsOnServer = active,
@@ -458,9 +497,23 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Fall back to local device cache counts so the owner still sees cached state during quota exhaustion
+            val cachedProds = runCatching { db.collection("products").get(Source.CACHE).await() }.getOrNull()
+            val cachedActive = cachedProds?.documents?.count { it.getBoolean("isDeleted") == false } ?: 0
+            val cachedHidden = ((cachedProds?.size() ?: 0) - cachedActive).coerceAtLeast(0)
+            val cachedDeleted = runCatching { db.collection("deletedProducts").get(Source.CACHE).await().size() }.getOrDefault(0)
+            val cachedBackups = runCatching { db.collection("backupRecords").get(Source.CACHE).await().size() }.getOrDefault(0)
+            val cachedLogs = runCatching { db.collection("auditLogs").get(Source.CACHE).await().size() }.getOrDefault(0)
+            val cachedImages = runCatching { db.collection("productImages").get(Source.CACHE).await().size() }.getOrDefault(0)
             CloudDiagnosticsSummary(
                 signedInEmail = email,
-                error = e.localizedMessage ?: "Server unreachable"
+                activeProductsOnServer = cachedActive,
+                hiddenProductsOnServer = cachedHidden,
+                imagesOnServer = cachedImages,
+                recycleBinOnServer = cachedDeleted,
+                backupsOnServer = cachedBackups,
+                auditLogsOnServer = cachedLogs,
+                error = e.unwrapFirestoreMessage("Server unreachable")
             )
         }
     }
@@ -493,9 +546,15 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         return try {
             val prods = db.collection("products").whereEqualTo("isDeleted", false).limit(1).get().await()
             if (prods.isEmpty) return false
-            val backups = db.collection("backupRecords").whereEqualTo("status", "SUCCESS").limit(10).get().await()
+            val backups = db.collection("backupRecords")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(5)
+                .get()
+                .await()
             val nowSec = System.currentTimeMillis() / 1000L
-            val newestSec = backups.documents.maxOfOrNull { it.getTimestamp("createdAt")?.seconds ?: 0L } ?: 0L
+            val newestSec = backups.documents
+                .filter { it.getString("status") == "SUCCESS" || it.getString("status") == "RESTORED" }
+                .maxOfOrNull { it.getTimestamp("createdAt")?.seconds ?: 0L } ?: 0L
             (nowSec - newestSec) > 86_400L
         } catch (_: Exception) {
             false
@@ -512,13 +571,14 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
             try {
                 val categoriesSnap = db.collection("categories").get().await()
                 val productsSnap = db.collection("products").get().await()
-                val couponsSnap = db.collection("coupons").get().await()
-                val ordersSnap = db.collection("orders").get().await()
-                val imagesSnap = runCatching { db.collection("productImages").get().await() }.getOrNull()
+                val couponsCount = runCatching { db.collection("coupons").count().get(AggregateSource.SERVER).await().count }.getOrDefault(0L)
+                val ordersCount = runCatching { db.collection("orders").count().get(AggregateSource.SERVER).await().count }.getOrDefault(0L)
+                val serverImagesCount = runCatching { db.collection("productImages").count().get(AggregateSource.SERVER).await().count }.getOrNull()
 
-                val imageCount = imagesSnap?.size()?.toLong()
-                    ?: productsSnap.documents.sumOf { ((it.get("imageIds") as? List<*>)?.size ?: 0).toLong() }
-                val imageBytes = imagesSnap?.documents?.sumOf { it.getLong("sizeBytes") ?: 0L } ?: 0L
+                val derivedImageIds = productsSnap.documents.flatMap { d ->
+                    (d.get("imageIds") as? List<*>)?.mapNotNull { it?.toString()?.takeIf { s -> s.isNotBlank() } }.orEmpty()
+                }.distinct()
+                val imageCount = serverImagesCount ?: derivedImageIds.size.toLong()
 
                 val productsJson = JSONArray(productsSnap.documents.map { d ->
                     JSONObject().apply {
@@ -549,13 +609,15 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     JSONObject(d.data?.filterValues { it is String || it is Number || it is Boolean } ?: emptyMap<String, Any>()).put("_id", d.id)
                 })
 
-                val manifestJson = if (imagesSnap != null) {
-                    JSONArray(imagesSnap.documents.map { d ->
-                        JSONObject().apply {
-                            put("imageId", d.id)
-                            put("productId", d.getString("productId") ?: "")
-                            put("sizeBytes", d.getLong("sizeBytes") ?: 0L)
-                            put("mimeType", d.getString("mimeType") ?: "image/jpeg")
+                val manifestJson = if (backupType == "IMAGE_MANIFEST") {
+                    JSONArray(productsSnap.documents.flatMap { d ->
+                        val ids = (d.get("imageIds") as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+                        ids.map { imgId ->
+                            JSONObject().apply {
+                                put("imageId", imgId)
+                                put("productId", d.id)
+                                put("mimeType", "image/jpeg")
+                            }
                         }
                     })
                 } else JSONArray()
@@ -565,7 +627,7 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     put("backupType", backupType)
                     put("categories", categoriesJson)
                     put("products", productsJson)
-                    put("imageManifest", manifestJson)
+                    if (manifestJson.length() > 0) put("imageManifest", manifestJson)
                 }.toString()
 
                 if (payloadJson.length > 650_000) {
@@ -577,8 +639,8 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     }.toString()
                 }
 
-                val itemCount = (categoriesSnap.size() + productsSnap.size() + couponsSnap.size() + ordersSnap.size()).toLong()
-                val totalBytes = payloadJson.toByteArray().size.toLong() + imageBytes
+                val itemCount = categoriesSnap.size().toLong() + productsSnap.size().toLong() + couponsCount + ordersCount
+                val totalBytes = payloadJson.toByteArray().size.toLong()
 
                 val recordData = mapOf(
                     "backupType" to backupType,
@@ -613,23 +675,24 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                 throw e
             } catch (e: Exception) {
                 handleFirestoreError(e, OperationType.CREATE, ref.path)
-                // Record failure alert
-                runCatching {
-                    ref.set(
-                        mapOf(
-                            "backupType" to backupType,
-                            "status" to "FAILED",
-                            "itemCount" to 0L,
-                            "imageCount" to 0L,
-                            "sizeBytes" to 0L,
-                            "retentionDays" to retentionDays.coerceIn(1L, 365L),
-                            "storageLocation" to "Failed",
-                            "snapshotPayloadJson" to "",
-                            "errorMessage" to (e.localizedMessage ?: "Backup failed").take(450),
-                            "createdBy" to uid,
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
-                    ).await()
+                if (!e.isQuotaExceededError()) {
+                    runCatching {
+                        ref.set(
+                            mapOf(
+                                "backupType" to backupType,
+                                "status" to "FAILED",
+                                "itemCount" to 0L,
+                                "imageCount" to 0L,
+                                "sizeBytes" to 0L,
+                                "retentionDays" to retentionDays.coerceIn(1L, 365L),
+                                "storageLocation" to "Failed",
+                                "snapshotPayloadJson" to "",
+                                "errorMessage" to (e.localizedMessage ?: "Backup failed").take(450),
+                                "createdBy" to uid,
+                                "createdAt" to FieldValue.serverTimestamp()
+                            )
+                        ).await()
+                    }
                 }
                 throw e
             }
@@ -724,12 +787,13 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
 
     private suspend fun pruneExpiredBackups(retentionDays: Long) {
         val cutoffSeconds = (System.currentTimeMillis() / 1000L) - (retentionDays * 86400L)
-        val snap = db.collection("backupRecords").get().await()
+        val snap = db.collection("backupRecords")
+            .whereLessThan("createdAt", Timestamp(cutoffSeconds, 0))
+            .limit(20)
+            .get()
+            .await()
         snap.documents.forEach { doc ->
-            val createdSec = doc.getTimestamp("createdAt")?.seconds ?: Long.MAX_VALUE
-            if (createdSec < cutoffSeconds) {
-                doc.reference.delete().await()
-            }
+            doc.reference.delete().await()
         }
     }
 
