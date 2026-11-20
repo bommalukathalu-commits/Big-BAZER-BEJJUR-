@@ -315,7 +315,7 @@ fun ProductDetailScreen(
         val extra = similar.filterNot { it.id in topIds }
         if (extra.isNotEmpty()) extra else similar
     }
-    val images = product.imageUrls.ifEmpty { listOf("") }
+    val images = product.resolvedImageUrls().ifEmpty { listOf("") }
     val pagerState = rememberPagerState(pageCount = { images.size })
     val discount = product.computedDiscountPercent()
 

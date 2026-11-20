@@ -80,7 +80,7 @@ class CartAndOrderRepository(private val db: FirebaseFirestore) {
                     productId = product.id,
                     productNameEn = product.nameEn,
                     productNameTe = product.nameTe,
-                    imageUrl = product.imageUrls.firstOrNull().orEmpty(),
+                    imageUrl = product.primaryImageUrl().orEmpty(),
                     originalPrice = product.originalPrice,
                     sellingPrice = product.sellingPrice,
                     quantity = quantity.toLong().coerceAtLeast(1L),

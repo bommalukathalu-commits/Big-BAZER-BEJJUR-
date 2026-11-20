@@ -144,6 +144,14 @@ data class Product(
     fun localizedDescription(isTelugu: Boolean): String =
         if (isTelugu && descriptionTe.isNotBlank()) descriptionTe else descriptionEn
 
+    fun resolvedImageUrls(): List<String> {
+        val cleaned = imageUrls.map { it.trim() }.filter { it.isNotBlank() }
+        if (cleaned.isNotEmpty()) return cleaned
+        return imageIds.map { it.trim() }.filter { it.isNotBlank() }.map { "cloudimg://$it" }
+    }
+
+    fun primaryImageUrl(): String? = resolvedImageUrls().firstOrNull()
+
     fun computedDiscountPercent(): Int {
         if (discountPercent > 0) return discountPercent.toInt()
         if (originalPrice > sellingPrice && originalPrice > 0) {

@@ -492,12 +492,14 @@ class BigBazerViewModel(
         productId: String,
         payload: ProcessedImagePayload,
         sortOrder: Int
-    ): Result<Pair<String, String>> = storeRepo.uploadProductImage(productId, payload, sortOrder)
+    ): Result<Pair<String, String>> = storeRepo.uploadProductImage(productId, payload, sortOrder).onSuccess { (imageId, _) ->
+        com.example.data.util.ImageProcessor.cacheCloudImageBytes(appContext, imageId, payload.bytes)
+    }
 
-    fun saveProduct(product: Product, onSaved: () -> Unit = {}) {
+    fun saveProduct(product: Product, onSaved: () -> Unit = {}, preferredNewId: String = "") {
         viewModelScope.launch {
             _isBusy.value = true
-            storeRepo.saveProduct(product)
+            storeRepo.saveProduct(product, preferredNewId)
                 .onSuccess { prodId ->
                     _isBusy.value = false
                     adminRepo.logAudit(

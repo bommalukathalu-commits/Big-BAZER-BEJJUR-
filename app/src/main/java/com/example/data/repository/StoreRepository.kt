@@ -284,9 +284,14 @@ class StoreRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    suspend fun saveProduct(product: Product): Result<String> = runCatching {
+    suspend fun saveProduct(product: Product, preferredNewId: String = ""): Result<String> = runCatching {
         val isNew = product.id.isBlank()
-        val id = if (isNew) "prod_${UUID.randomUUID().toString().replace("-", "").take(12)}" else product.id
+        val id = if (isNew) {
+            preferredNewId.trim().takeIf { it.isNotBlank() }
+                ?: "prod_${UUID.randomUUID().toString().replace("-", "").take(12)}"
+        } else {
+            product.id
+        }
         val ref = db.collection("products").document(id)
         try {
             ref.set(product.toMap(isNew)).await()
@@ -368,7 +373,7 @@ class StoreRepository(private val db: FirebaseFirestore) {
                         "productId" to product.id,
                         "productNameEn" to product.nameEn,
                         "sellingPrice" to product.sellingPrice,
-                        "imageUrl" to product.imageUrls.firstOrNull().orEmpty(),
+                        "imageUrl" to product.primaryImageUrl().orEmpty(),
                         "createdAt" to FieldValue.serverTimestamp()
                     )
                 ).await()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.util.Base64
 import coil.ImageLoader
@@ -14,11 +15,17 @@ import coil.fetch.Fetcher
 import coil.fetch.SourceResult
 import coil.request.Options
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okio.Buffer
 import java.io.ByteArrayOutputStream
+import java.io.File
 import kotlin.math.min
 
 data class ProcessedImagePayload(
@@ -31,9 +38,11 @@ data class ProcessedImagePayload(
 )
 
 object ImageProcessor {
-    const val MAX_DIMENSION_PX = 900
-    const val MAX_BYTES = 450_000
+    const val MAX_DIMENSION_PX = 800
+    const val TARGET_BYTES = 240_000
+    const val MAX_BYTES = 440_000
     const val CLOUD_IMAGE_SCHEME = "cloudimg://"
+    private const val DISK_CACHE_DIR = "cloud_images"
 
     suspend fun decodeForPreview(context: Context, uri: Uri, maxPreviewPx: Int = 1200): Bitmap? =
         withContext(Dispatchers.IO) {
@@ -42,13 +51,65 @@ object ImageProcessor {
                 context.contentResolver.openInputStream(uri)?.use {
                     BitmapFactory.decodeStream(it, null, bounds)
                 }
-                val sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxPreviewPx, maxPreviewPx)
-                val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                context.contentResolver.openInputStream(uri)?.use {
-                    BitmapFactory.decodeStream(it, null, opts)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    // Fallback direct decode if bounds probe didn't report dimensions
+                    val direct = context.contentResolver.openInputStream(uri)?.use {
+                        BitmapFactory.decodeStream(it)
+                    } ?: return@runCatching null
+                    return@runCatching applyExifOrientation(context, uri, scaleDownIfNeeded(direct, maxPreviewPx))
                 }
+
+                var sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxPreviewPx, maxPreviewPx)
+                var decoded: Bitmap? = null
+                for (attempt in 0 until 3) {
+                    try {
+                        val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                        decoded = context.contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, opts)
+                        }
+                        if (decoded != null) break
+                    } catch (_: OutOfMemoryError) {
+                        sampleSize *= 2
+                    }
+                }
+                val bmp = decoded ?: return@runCatching null
+                applyExifOrientation(context, uri, bmp)
             }.getOrNull()
         }
+
+    private fun applyExifOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                ExifInterface(stream).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            }
+        }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.postRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.postRotate(270f)
+                matrix.postScale(-1f, 1f)
+            }
+            else -> return bitmap
+        }
+        return runCatching {
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            if (rotated !== bitmap) bitmap.recycle()
+            rotated
+        }.getOrDefault(bitmap)
+    }
 
     fun cropAndRotate(
         source: Bitmap,
@@ -76,15 +137,27 @@ object ImageProcessor {
     suspend fun compressForCloudUpload(bitmap: Bitmap): Result<ProcessedImagePayload> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val scaled = scaleDownIfNeeded(bitmap, MAX_DIMENSION_PX)
-                var quality = 86
-                var outputBytes: ByteArray
-                do {
-                    val stream = ByteArrayOutputStream()
-                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, stream)
-                    outputBytes = stream.toByteArray()
-                    quality -= 8
-                } while (outputBytes.size > MAX_BYTES && quality >= 38)
+                val dimensionSteps = listOf(MAX_DIMENSION_PX, 640, 480, 360)
+                var chosenBitmap = bitmap
+                var outputBytes = ByteArray(0)
+
+                outer@ for (maxDim in dimensionSteps) {
+                    val scaled = scaleDownIfNeeded(bitmap, maxDim)
+                    chosenBitmap = scaled
+                    var quality = 84
+                    while (quality >= 36) {
+                        val stream = ByteArrayOutputStream()
+                        scaled.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+                        outputBytes = stream.toByteArray()
+                        if (outputBytes.isNotEmpty() && outputBytes.size <= TARGET_BYTES) {
+                            break@outer
+                        }
+                        quality -= 8
+                    }
+                    if (outputBytes.isNotEmpty() && outputBytes.size <= MAX_BYTES) {
+                        break@outer
+                    }
+                }
 
                 require(outputBytes.isNotEmpty() && outputBytes.size <= MAX_BYTES) {
                     "Image exceeds maximum cloud upload size (${MAX_BYTES / 1024} KB). Please crop tighter."
@@ -94,12 +167,42 @@ object ImageProcessor {
                     bytes = outputBytes,
                     base64Data = base64,
                     mimeType = "image/jpeg",
-                    width = scaled.width,
-                    height = scaled.height,
+                    width = chosenBitmap.width,
+                    height = chosenBitmap.height,
                     sizeBytes = outputBytes.size
                 )
             }
         }
+
+    fun getCachedCloudImageBytes(context: Context, imageId: String): ByteArray? {
+        if (imageId.isBlank()) return null
+        return runCatching {
+            val file = cacheFileFor(context, imageId)
+            if (file.exists() && file.length() > 0L) file.readBytes() else null
+        }.getOrNull()
+    }
+
+    fun cacheCloudImageBytes(context: Context, imageId: String, bytes: ByteArray) {
+        if (imageId.isBlank() || bytes.isEmpty()) return
+        runCatching {
+            val dir = File(context.cacheDir, DISK_CACHE_DIR).apply { mkdirs() }
+            val target = cacheFileFor(context, imageId)
+            val tmp = File(dir, "${safeFileName(imageId)}.tmp")
+            tmp.writeBytes(bytes)
+            if (!tmp.renameTo(target)) {
+                target.writeBytes(bytes)
+                tmp.delete()
+            }
+        }
+    }
+
+    private fun cacheFileFor(context: Context, imageId: String): File {
+        val dir = File(context.cacheDir, DISK_CACHE_DIR)
+        return File(dir, "${safeFileName(imageId)}.img")
+    }
+
+    private fun safeFileName(imageId: String): String =
+        imageId.replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
 
     private fun scaleDownIfNeeded(bitmap: Bitmap, maxDim: Int): Bitmap {
         val w = bitmap.width
@@ -130,7 +233,9 @@ class CloudImageFetcherFactory(
 ) : Fetcher.Factory<Uri> {
     override fun create(data: Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
         if (data.scheme != "cloudimg") return null
-        val imageId = data.host ?: data.path?.trimStart('/') ?: return null
+        val imageId = data.host?.trim()?.takeIf { it.isNotBlank() }
+            ?: data.path?.trimStart('/')?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
         return CloudImageFetcher(context, db, imageId)
     }
 }
@@ -140,23 +245,98 @@ private class CloudImageFetcher(
     private val db: FirebaseFirestore,
     private val imageId: String
 ) : Fetcher {
+    companion object {
+        // Limit parallel multi-hundred-KB Firestore image fetches so mobile networks don't time out
+        private val fetchSemaphore = Semaphore(permits = 4)
+    }
+
     override suspend fun fetch(): FetchResult {
-        val docRef = db.collection("productImages").document(imageId)
-        val snapshot = try {
-            docRef.get().await()
-        } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.GET, docRef.path)
-            throw e
+        // 1. Serve immediately from local disk cache when available
+        val cachedBytes = withContext(Dispatchers.IO) {
+            ImageProcessor.getCachedCloudImageBytes(context, imageId)
         }
-        val base64 = snapshot.getString("base64Data")
-            ?: throw IllegalStateException("Cloud image $imageId not found")
-        val mimeType = snapshot.getString("mimeType") ?: "image/jpeg"
-        val bytes = Base64.decode(base64, Base64.DEFAULT)
-        val buffer = Buffer().write(bytes)
-        return SourceResult(
-            source = ImageSource(buffer, context),
-            mimeType = mimeType,
-            dataSource = DataSource.NETWORK
-        )
+        if (cachedBytes != null && cachedBytes.isNotEmpty()) {
+            val buffer = Buffer().write(cachedBytes)
+            return SourceResult(
+                source = ImageSource(buffer, context),
+                mimeType = "image/jpeg",
+                dataSource = DataSource.DISK
+            )
+        }
+
+        // 2. Fetch from Firestore with concurrency control, retry + server/cache fallbacks
+        return fetchSemaphore.withPermit {
+            // Re-check disk cache in case another simultaneous request just populated it
+            val recheck = withContext(Dispatchers.IO) {
+                ImageProcessor.getCachedCloudImageBytes(context, imageId)
+            }
+            if (recheck != null && recheck.isNotEmpty()) {
+                return@withPermit SourceResult(
+                    source = ImageSource(Buffer().write(recheck), context),
+                    mimeType = "image/jpeg",
+                    dataSource = DataSource.DISK
+                )
+            }
+
+            val docRef = db.collection("productImages").document(imageId)
+            var lastError: Exception? = null
+            var snapshot = try {
+                docRef.get().await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                null
+            }
+
+            // If default read missed/failed, retry up to 2 more times with backoff
+            if (snapshot == null || !snapshot.exists()) {
+                for (attempt in 1..2) {
+                    delay(attempt * 350L)
+                    snapshot = try {
+                        if (snapshot != null && !snapshot.exists()) {
+                            // Local cache may have cached a miss; force server read
+                            docRef.get(Source.SERVER).await()
+                        } else {
+                            docRef.get().await()
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        lastError = e
+                        null
+                    }
+                    if (snapshot != null && snapshot.exists()) break
+                }
+            }
+
+            // Last-chance offline cache lookup if network failed
+            if (snapshot == null) {
+                snapshot = runCatching { docRef.get(Source.CACHE).await() }.getOrNull()
+            }
+
+            if (snapshot == null) {
+                lastError?.let { handleFirestoreError(it, OperationType.GET, docRef.path) }
+                throw lastError ?: IllegalStateException("Cloud image $imageId fetch failed")
+            }
+
+            val base64 = snapshot.getString("base64Data")?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: throw IllegalStateException("Cloud image $imageId not found")
+            val mimeType = snapshot.getString("mimeType") ?: "image/jpeg"
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            require(bytes.isNotEmpty()) { "Decoded cloud image $imageId is empty" }
+
+            withContext(Dispatchers.IO) {
+                ImageProcessor.cacheCloudImageBytes(context, imageId, bytes)
+            }
+
+            val buffer = Buffer().write(bytes)
+            SourceResult(
+                source = ImageSource(buffer, context),
+                mimeType = mimeType,
+                dataSource = DataSource.NETWORK
+            )
+        }
     }
 }

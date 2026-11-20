@@ -47,6 +47,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,12 +57,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -96,7 +101,8 @@ fun CloudProductImage(
 ) {
     val context = LocalContext.current
     val imageLoader = LocalAppImageLoader.current
-    if (imageUrl.isNullOrBlank()) {
+    val cleanUrl = imageUrl?.trim().orEmpty()
+    if (cleanUrl.isBlank()) {
         Box(
             modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
@@ -109,44 +115,61 @@ fun CloudProductImage(
             )
         }
     } else {
-        SubcomposeAsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(imageUrl)
-                .crossfade(true)
-                .build(),
-            imageLoader = imageLoader,
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-            modifier = modifier,
-            loading = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ShoppingBag,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                    )
+        var retryAttempt by remember(cleanUrl) { mutableIntStateOf(0) }
+        key(cleanUrl, retryAttempt) {
+            SubcomposeAsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(cleanUrl)
+                    .crossfade(true)
+                    .build(),
+                imageLoader = imageLoader,
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                modifier = modifier,
+                loading = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(22.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                    }
+                },
+                error = {
+                    LaunchedEffect(cleanUrl, retryAttempt) {
+                        if (retryAttempt < 3) {
+                            delay(1200L * (retryAttempt + 1))
+                            retryAttempt++
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (retryAttempt < 3) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(22.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.BrokenImage,
+                                contentDescription = contentDescription,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
                 }
-            },
-            error = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BrokenImage,
-                        contentDescription = contentDescription,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
-            }
-        )
+            )
+        }
     }
 }
 
@@ -196,7 +219,7 @@ fun ProductCard(
                     .aspectRatio(1f)
             ) {
                 CloudProductImage(
-                    imageUrl = product.imageUrls.firstOrNull(),
+                    imageUrl = product.primaryImageUrl(),
                     contentDescription = product.localizedName(isTelugu),
                     modifier = Modifier
                         .fillMaxSize()
@@ -335,10 +358,10 @@ fun ImageCropEditorDialog(
     onDismiss: () -> Unit,
     onConfirmCropped: (Bitmap) -> Unit
 ) {
-    var rotation by remember { mutableFloatStateOf(0f) }
-    var trimHorizontal by remember { mutableFloatStateOf(0f) }
-    var trimVertical by remember { mutableFloatStateOf(0f) }
-    var aspectPreset by remember { mutableStateOf("FREE") }
+    var rotation by remember(sourceBitmap) { mutableFloatStateOf(0f) }
+    var trimHorizontal by remember(sourceBitmap) { mutableFloatStateOf(0f) }
+    var trimVertical by remember(sourceBitmap) { mutableFloatStateOf(0f) }
+    var aspectPreset by remember(sourceBitmap) { mutableStateOf("FREE") }
 
     val previewBitmap = remember(sourceBitmap, rotation, trimHorizontal, trimVertical, aspectPreset) {
         val left = trimHorizontal.coerceIn(0f, 0.35f)

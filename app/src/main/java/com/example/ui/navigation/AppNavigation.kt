@@ -378,7 +378,7 @@ private fun AuthenticatedStoreApp(
                     isBusy = isBusy,
                     onBack = { overlay = OverlayRoute.None },
                     onUploadImage = vm::uploadSingleProductImage,
-                    onSaveProduct = vm::saveProduct,
+                    onSaveProduct = { prod, preferredNewId, onSaved -> vm.saveProduct(prod, onSaved, preferredNewId) },
                     onSoftDeleteProduct = vm::softDeleteProduct,
                     onSaveCategory = vm::saveCategory,
                     onInitDefaultCategories = vm::initializeDefaultCategories,

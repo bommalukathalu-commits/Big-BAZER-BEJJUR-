@@ -53,7 +53,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -121,7 +123,7 @@ fun AdminPanelScreen(
     isBusy: Boolean,
     onBack: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
-    onSaveProduct: (Product, () -> Unit) -> Unit,
+    onSaveProduct: (Product, String, () -> Unit) -> Unit,
     onSoftDeleteProduct: (Product, String) -> Unit,
     onSaveCategory: (Category, () -> Unit) -> Unit,
     onInitDefaultCategories: () -> Unit,
@@ -319,7 +321,7 @@ private fun AdminProductsTab(
     products: List<Product>,
     categories: List<Category>,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
-    onSaveProduct: (Product, () -> Unit) -> Unit,
+    onSaveProduct: (Product, String, () -> Unit) -> Unit,
     onSoftDeleteProduct: (Product, String) -> Unit
 ) {
     var editingProduct by remember { mutableStateOf<Product?>(null) }
@@ -354,7 +356,7 @@ private fun AdminProductsTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CloudProductImage(
-                        imageUrl = p.imageUrls.firstOrNull(),
+                        imageUrl = p.primaryImageUrl(),
                         contentDescription = p.nameEn,
                         modifier = Modifier
                             .size(64.dp)
@@ -364,7 +366,7 @@ private fun AdminProductsTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(p.nameEn, fontWeight = FontWeight.Bold)
                         Text("${p.categoryNameEn} • ₹${p.sellingPrice.toInt()} • Stock: ${p.stock}", style = MaterialTheme.typography.bodySmall)
-                        Text("${p.imageUrls.size} cloud images", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                        Text("${p.resolvedImageUrls().size} cloud images", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                     }
                     IconButton(onClick = {
                         editingProduct = p
@@ -381,15 +383,17 @@ private fun AdminProductsTab(
     }
 
     if (showEditor) {
-        ProductEditorDialog(
-            existing = editingProduct,
-            categories = categories,
-            onDismiss = { showEditor = false },
-            onUploadImage = onUploadImage,
-            onPublish = { prod ->
-                onSaveProduct(prod) { showEditor = false }
-            }
-        )
+        key(editingProduct?.id ?: "new_product") {
+            ProductEditorDialog(
+                existing = editingProduct,
+                categories = categories,
+                onDismiss = { showEditor = false },
+                onUploadImage = onUploadImage,
+                onPublish = { prod, preferredId ->
+                    onSaveProduct(prod, preferredId) { showEditor = false }
+                }
+            )
+        }
     }
 }
 
@@ -399,7 +403,7 @@ private fun ProductEditorDialog(
     categories: List<Category>,
     onDismiss: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
-    onPublish: (Product) -> Unit
+    onPublish: (Product, String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -428,10 +432,13 @@ private fun ProductEditorDialog(
 
     var imageSlots by remember {
         mutableStateOf<List<ImageUploadSlot>>(
-            existing?.imageUrls?.mapIndexed { idx, url ->
+            existing?.resolvedImageUrls()?.mapIndexed { idx, url ->
+                val resolvedId = existing.imageIds.getOrElse(idx) { "" }.ifBlank {
+                    url.removePrefix(ImageProcessor.CLOUD_IMAGE_SCHEME).trim()
+                }
                 ImageUploadSlot(
-                    localKey = "existing_$idx",
-                    imageId = existing.imageIds.getOrElse(idx) { "" },
+                    localKey = "existing_${idx}_$resolvedId",
+                    imageId = resolvedId,
                     cloudUrl = url,
                     status = UploadSlotStatus.UPLOADED
                 )
@@ -439,19 +446,40 @@ private fun ProductEditorDialog(
         )
     }
 
-    var pendingCropQueue by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+    var pendingCropUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var currentCropBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var imageErrorMessage by remember { mutableStateOf<String?>(null) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val nextCropUri = pendingCropUris.firstOrNull()
+    LaunchedEffect(nextCropUri) {
+        if (nextCropUri == null) {
+            currentCropBitmap = null
+        } else {
+            currentCropBitmap = null
+            val decoded = ImageProcessor.decodeForPreview(context, uri = nextCropUri)
+            if (decoded == null) {
+                pendingCropUris = pendingCropUris.drop(1)
+                imageErrorMessage = "Could not open one selected photo. Please try choosing it again."
+            } else {
+                currentCropBitmap = decoded
+            }
+        }
+    }
 
     fun enqueueUpload(bitmap: Bitmap) {
         val localKey = "slot_${UUID.randomUUID().toString().take(8)}"
         val sortOrder = imageSlots.size
+        imageErrorMessage = null
         imageSlots = imageSlots + ImageUploadSlot(localKey = localKey, status = UploadSlotStatus.UPLOADING)
 
         scope.launch {
             val payloadResult = ImageProcessor.compressForCloudUpload(bitmap)
             if (payloadResult.isFailure) {
+                val msg = payloadResult.exceptionOrNull()?.message ?: "Compression failed"
+                imageErrorMessage = msg
                 imageSlots = imageSlots.map {
-                    if (it.localKey == localKey) it.copy(status = UploadSlotStatus.FAILED, error = payloadResult.exceptionOrNull()?.message ?: "Compression failed")
+                    if (it.localKey == localKey) it.copy(status = UploadSlotStatus.FAILED, error = msg)
                     else it
                 }
                 return@launch
@@ -462,10 +490,12 @@ private fun ProductEditorDialog(
                 if (it.localKey == localKey) {
                     uploadRes.fold(
                         onSuccess = { (imgId, cloudUrl) ->
-                            it.copy(imageId = imgId, cloudUrl = cloudUrl, status = UploadSlotStatus.UPLOADED, payload = payload)
+                            it.copy(imageId = imgId, cloudUrl = cloudUrl, status = UploadSlotStatus.UPLOADED, payload = payload, error = "")
                         },
                         onFailure = { err ->
-                            it.copy(status = UploadSlotStatus.FAILED, payload = payload, error = err.localizedMessage ?: "Upload error")
+                            val msg = err.localizedMessage ?: "Upload error — check internet"
+                            imageErrorMessage = msg
+                            it.copy(status = UploadSlotStatus.FAILED, payload = payload, error = msg)
                         }
                     )
                 } else it
@@ -476,6 +506,7 @@ private fun ProductEditorDialog(
     fun retrySlot(slot: ImageUploadSlot) {
         val payload = slot.payload ?: return
         val sortOrder = imageSlots.indexOfFirst { it.localKey == slot.localKey }.coerceAtLeast(0)
+        imageErrorMessage = null
         imageSlots = imageSlots.map {
             if (it.localKey == slot.localKey) it.copy(status = UploadSlotStatus.UPLOADING, error = "") else it
         }
@@ -484,8 +515,12 @@ private fun ProductEditorDialog(
             imageSlots = imageSlots.map {
                 if (it.localKey == slot.localKey) {
                     uploadRes.fold(
-                        onSuccess = { (imgId, cloudUrl) -> it.copy(imageId = imgId, cloudUrl = cloudUrl, status = UploadSlotStatus.UPLOADED) },
-                        onFailure = { err -> it.copy(status = UploadSlotStatus.FAILED, error = err.localizedMessage ?: "Retry failed") }
+                        onSuccess = { (imgId, cloudUrl) -> it.copy(imageId = imgId, cloudUrl = cloudUrl, status = UploadSlotStatus.UPLOADED, error = "") },
+                        onFailure = { err ->
+                            val msg = err.localizedMessage ?: "Retry failed"
+                            imageErrorMessage = msg
+                            it.copy(status = UploadSlotStatus.FAILED, error = msg)
+                        }
                     )
                 } else it
             }
@@ -497,10 +532,8 @@ private fun ProductEditorDialog(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 6)
     ) { uris ->
         if (uris.isNotEmpty()) {
-            scope.launch {
-                val bitmaps = uris.mapNotNull { ImageProcessor.decodeForPreview(context, it) }
-                pendingCropQueue = pendingCropQueue + bitmaps
-            }
+            imageErrorMessage = null
+            pendingCropUris = pendingCropUris + uris
         }
     }
 
@@ -510,16 +543,14 @@ private fun ProductEditorDialog(
     ) { success ->
         val uri = cameraUri
         if (success && uri != null) {
-            scope.launch {
-                ImageProcessor.decodeForPreview(context, uri)?.let { bmp ->
-                    pendingCropQueue = pendingCropQueue + bmp
-                }
-            }
+            imageErrorMessage = null
+            pendingCropUris = pendingCropUris + uri
         }
     }
 
     val allUploaded = imageSlots.none { it.status != UploadSlotStatus.UPLOADED }
     val hasAtLeastOneImage = imageSlots.any { it.status == UploadSlotStatus.UPLOADED }
+    val failedSlots = imageSlots.filter { it.status == UploadSlotStatus.FAILED }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -551,6 +582,14 @@ private fun ProductEditorDialog(
                             Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Camera")
+                        }
+                    }
+
+                    if (nextCropUri != null && currentCropBitmap == null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text("Preparing selected photo...", style = MaterialTheme.typography.labelSmall)
                         }
                     }
 
@@ -590,6 +629,27 @@ private fun ProductEditorDialog(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                    if (!imageErrorMessage.isNullOrBlank() || failedSlots.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = failedSlots.firstOrNull()?.error?.ifBlank { null }
+                                    ?: imageErrorMessage.orEmpty(),
+                                color = ErrorRed,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (failedSlots.any { it.payload != null }) {
+                                TextButton(onClick = { failedSlots.forEach { retrySlot(it) } }) {
+                                    Text("Retry")
                                 }
                             }
                         }
@@ -667,7 +727,8 @@ private fun ProductEditorDialog(
                             ratingAverage = existing?.ratingAverage ?: 0.0,
                             reviewCount = existing?.reviewCount ?: 0L,
                             createdAt = existing?.createdAt
-                        )
+                        ),
+                        targetProdId
                     )
                 },
                 enabled = nameEn.isNotBlank() && (sellPrice.toDoubleOrNull() ?: 0.0) > 0 && allUploaded && hasAtLeastOneImage,
@@ -679,13 +740,17 @@ private fun ProductEditorDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 
-    val currentCrop = pendingCropQueue.firstOrNull()
-    if (currentCrop != null) {
+    val cropBmp = currentCropBitmap
+    if (cropBmp != null) {
         ImageCropEditorDialog(
-            sourceBitmap = currentCrop,
-            onDismiss = { pendingCropQueue = pendingCropQueue.drop(1) },
+            sourceBitmap = cropBmp,
+            onDismiss = {
+                currentCropBitmap = null
+                pendingCropUris = pendingCropUris.drop(1)
+            },
             onConfirmCropped = { cropped ->
-                pendingCropQueue = pendingCropQueue.drop(1)
+                currentCropBitmap = null
+                pendingCropUris = pendingCropUris.drop(1)
                 enqueueUpload(cropped)
             }
         )
