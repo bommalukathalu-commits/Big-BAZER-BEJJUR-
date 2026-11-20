@@ -24,6 +24,7 @@ import com.example.data.model.WishlistItem
 import com.example.data.repository.AdminAnalyticsSummary
 import com.example.data.repository.AdminOpsRepository
 import com.example.data.repository.CartAndOrderRepository
+import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.data.repository.StoreRepository
 import com.example.data.util.LocalNotificationHelper
 import com.example.data.util.ProcessedImagePayload
@@ -31,6 +32,8 @@ import com.example.data.util.unwrapFirestoreMessage
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +42,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -79,6 +83,9 @@ class BigBazerViewModel(
     private val _appliedCoupon = MutableStateFlow<Coupon?>(null)
     val appliedCoupon: StateFlow<Coupon?> = _appliedCoupon.asStateFlow()
 
+    private val _cloudDiagnostics = MutableStateFlow<CloudDiagnosticsSummary?>(null)
+    val cloudDiagnostics: StateFlow<CloudDiagnosticsSummary?> = _cloudDiagnostics.asStateFlow()
+
     private val seenNotificationIds = mutableSetOf<String>()
     private val inFlightCartKeys = mutableSetOf<String>()
 
@@ -94,59 +101,59 @@ class BigBazerViewModel(
     }
 
     val userProfile: StateFlow<UserProfile?> = storeRepo.observeUserProfile(currentUserId)
-        .catch { e -> handleStreamError("profile", e); emit(null) }
+        .resilientStream("profile", null)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
 
     val categories: StateFlow<List<Category>> = storeRepo.observeCategories()
-        .catch { e -> handleStreamError("categories", e); emit(emptyList()) }
+        .resilientStream("categories", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val products: StateFlow<List<Product>> = storeRepo.observeActiveProducts()
-        .catch { e -> handleStreamError("products", e); emit(emptyList()) }
+        .resilientStream("products", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val banners: StateFlow<List<Banner>> = storeRepo.observeBanners()
-        .catch { e -> handleStreamError("banners", e); emit(emptyList()) }
+        .resilientStream("banners", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val coupons: StateFlow<List<Coupon>> = storeRepo.observeCoupons()
-        .catch { e -> handleStreamError("coupons", e); emit(emptyList()) }
+        .resilientStream("coupons", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val shopSettings: StateFlow<ShopSettings> = storeRepo.observeShopSettings()
-        .catch { e -> handleStreamError("settings", e); emit(ShopSettings()) }
+        .resilientStream("settings", ShopSettings())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), ShopSettings())
 
     val cartItems: StateFlow<List<CartItem>> = cartRepo.observeCart(currentUserId)
-        .catch { e -> handleStreamError("cart", e); emit(emptyList()) }
+        .resilientStream("cart", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val addresses: StateFlow<List<CustomerAddress>> = cartRepo.observeAddresses(currentUserId)
-        .catch { e -> handleStreamError("addresses", e); emit(emptyList()) }
+        .resilientStream("addresses", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val wishlist: StateFlow<List<WishlistItem>> = storeRepo.observeWishlist(currentUserId)
-        .catch { e -> handleStreamError("wishlist", e); emit(emptyList()) }
+        .resilientStream("wishlist", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val recentlyViewedIds: StateFlow<List<String>> = storeRepo.observeRecentlyViewed(currentUserId)
-        .catch { e -> handleStreamError("recentlyViewed", e); emit(emptyList()) }
+        .resilientStream("recentlyViewed", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val userOrders: StateFlow<List<Order>> = cartRepo.observeUserOrders(currentUserId)
-        .catch { e -> handleStreamError("userOrders", e); emit(emptyList()) }
+        .resilientStream("userOrders", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val userPayments: StateFlow<List<PaymentRecord>> = cartRepo.observeUserPayments(currentUserId)
-        .catch { e -> handleStreamError("userPayments", e); emit(emptyList()) }
+        .resilientStream("userPayments", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val userTickets: StateFlow<List<SupportTicket>> = cartRepo.observeUserTickets(currentUserId)
-        .catch { e -> handleStreamError("userTickets", e); emit(emptyList()) }
+        .resilientStream("userTickets", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val notifications: StateFlow<List<AppNotification>> = storeRepo.observeUserNotifications(currentUserId)
-        .catch { e -> handleStreamError("notifications", e); emit(emptyList()) }
+        .resilientStream("notifications", emptyList())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     init {
@@ -185,43 +192,43 @@ class BigBazerViewModel(
     // --- Admin-only Reactive Streams (strictly gated on isAdmin == true) ---
     @OptIn(ExperimentalCoroutinesApi::class)
     val allOrders: StateFlow<List<Order>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllOrders().catch { e -> handleStreamError("allOrders", e); emit(emptyList()) }
+        if (admin) adminRepo.observeAllOrders().resilientStream("allOrders", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allPayments: StateFlow<List<PaymentRecord>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllPayments().catch { e -> handleStreamError("allPayments", e); emit(emptyList()) }
+        if (admin) adminRepo.observeAllPayments().resilientStream("allPayments", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allCustomers: StateFlow<List<UserProfile>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllCustomers().catch { e -> handleStreamError("allCustomers", e); emit(emptyList()) }
+        if (admin) adminRepo.observeAllCustomers().resilientStream("allCustomers", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allTickets: StateFlow<List<SupportTicket>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAllTickets().catch { e -> handleStreamError("allTickets", e); emit(emptyList()) }
+        if (admin) adminRepo.observeAllTickets().resilientStream("allTickets", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val deletedProducts: StateFlow<List<DeletedProduct>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeDeletedProducts().catch { e -> handleStreamError("deletedProducts", e); emit(emptyList()) }
+        if (admin) adminRepo.observeDeletedProducts().resilientStream("deletedProducts", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val backupRecords: StateFlow<List<BackupRecord>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeBackupRecords().catch { e -> handleStreamError("backupRecords", e); emit(emptyList()) }
+        if (admin) adminRepo.observeBackupRecords().resilientStream("backupRecords", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val auditLogs: StateFlow<List<AuditLog>> = isAdmin.flatMapLatest { admin ->
-        if (admin) adminRepo.observeAuditLogs().catch { e -> handleStreamError("auditLogs", e); emit(emptyList()) }
+        if (admin) adminRepo.observeAuditLogs().resilientStream("auditLogs", emptyList())
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
@@ -629,19 +636,58 @@ class BigBazerViewModel(
         }
     }
 
+    fun checkCloudDiagnostics() {
+        viewModelScope.launch {
+            _isBusy.value = true
+            val adminResult = storeRepo.ensureUserSessionAndCheckAdmin()
+            _isAdmin.value = adminResult.getOrDefault(_isAdmin.value)
+            val summary = adminRepo.checkCloudDiagnostics()
+            _cloudDiagnostics.value = summary
+            _isBusy.value = false
+            _statusMessage.value = if (summary.error.isNotBlank()) {
+                "Server check error: ${summary.error}"
+            } else {
+                "Server: ${summary.activeProductsOnServer} active, ${summary.hiddenProductsOnServer} hidden, ${summary.recycleBinOnServer} bin, ${summary.backupsOnServer} backups"
+            }
+        }
+    }
+
+    fun recoverHiddenProducts() {
+        viewModelScope.launch {
+            _isBusy.value = true
+            adminRepo.recoverHiddenProducts()
+                .onSuccess { count ->
+                    _cloudDiagnostics.value = adminRepo.checkCloudDiagnostics()
+                    _isBusy.value = false
+                    _statusMessage.value = if (count > 0) {
+                        "Recovered $count hidden products!"
+                    } else {
+                        "No hidden products found on server"
+                    }
+                }
+                .onFailure {
+                    _isBusy.value = false
+                    _statusMessage.value = it.unwrapFirestoreMessage("Recover hidden products failed")
+                }
+        }
+    }
+
     fun runBackupNow(backupType: String, onBackupReady: (BackupRecord) -> Unit = {}) {
         viewModelScope.launch {
             _isBusy.value = true
             val retention = shopSettings.value.backupRetentionDays.coerceIn(1L, 365L)
             adminRepo.createDatabaseBackup(backupType, retention)
                 .onSuccess { record ->
+                    if (_cloudDiagnostics.value != null) {
+                        _cloudDiagnostics.value = adminRepo.checkCloudDiagnostics()
+                    }
                     _isBusy.value = false
                     _statusMessage.value = "Backup $backupType completed (${record.itemCount} items, ${record.imageCount} images)"
                     onBackupReady(record)
                 }
                 .onFailure {
                     _isBusy.value = false
-                    _statusMessage.value = it.unwrapFirestoreMessage("Backup failed — failure logged")
+                    _statusMessage.value = it.unwrapFirestoreMessage("Backup failed — check connection & sign-in")
                 }
         }
     }
@@ -651,6 +697,9 @@ class BigBazerViewModel(
             _isBusy.value = true
             adminRepo.restoreFromBackup(record)
                 .onSuccess { count ->
+                    if (_cloudDiagnostics.value != null) {
+                        _cloudDiagnostics.value = adminRepo.checkCloudDiagnostics()
+                    }
                     _isBusy.value = false
                     _statusMessage.value = "Restored $count products from backup"
                 }
@@ -664,13 +713,29 @@ class BigBazerViewModel(
     private suspend fun runAutoDailyBackupIfNeeded() {
         val settings = shopSettings.value
         if (!settings.autoBackupEnabled) return
-        val last = backupRecords.value.firstOrNull { it.status == "SUCCESS" }
-        val nowSec = System.currentTimeMillis() / 1000L
-        val lastSec = last?.createdAt?.seconds ?: 0L
-        if (nowSec - lastSec > 86_400L) {
+        if (adminRepo.shouldRunAutoDailyBackup()) {
             adminRepo.createDatabaseBackup("FULL_SNAPSHOT", settings.backupRetentionDays)
         }
     }
+
+    private fun <T> Flow<T>.resilientStream(name: String, fallback: T): Flow<T> =
+        this.retryWhen { cause, attempt ->
+            if (cause is CancellationException && cause.cause == null) {
+                false
+            } else if (attempt < 5L) {
+                handleStreamError(name, cause)
+                delay(1000L * (attempt + 1L))
+                true
+            } else {
+                false
+            }
+        }.catch { e ->
+            handleStreamError(name, e)
+            if (name == "products" || name == "backupRecords" || name == "deletedProducts") {
+                _statusMessage.value = e.unwrapFirestoreMessage("Could not load $name — check connection")
+            }
+            emit(fallback)
+        }
 
     private fun handleStreamError(name: String, error: Throwable) {
         val firestoreError = generateSequence(error) { it.cause }

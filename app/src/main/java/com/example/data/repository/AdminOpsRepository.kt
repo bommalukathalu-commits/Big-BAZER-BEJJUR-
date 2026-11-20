@@ -17,6 +17,7 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,17 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+
+data class CloudDiagnosticsSummary(
+    val signedInEmail: String = "",
+    val activeProductsOnServer: Int = 0,
+    val hiddenProductsOnServer: Int = 0,
+    val imagesOnServer: Int = 0,
+    val recycleBinOnServer: Int = 0,
+    val backupsOnServer: Int = 0,
+    val auditLogsOnServer: Int = 0,
+    val error: String = ""
+)
 
 data class AdminAnalyticsSummary(
     val totalRevenue: Double = 0.0,
@@ -60,8 +72,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("orders")
             .snapshots()
             .map { snap ->
-                snap.toObjects(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "orders")
@@ -72,8 +85,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("payments")
             .snapshots()
             .map { snap ->
-                snap.toObjects(PaymentRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(PaymentRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "payments")
@@ -84,7 +98,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("users")
             .snapshots()
             .map { snap ->
-                snap.toObjects(UserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(UserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "users")
@@ -95,8 +111,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("supportTickets")
             .snapshots()
             .map { snap ->
-                snap.toObjects(SupportTicket::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(SupportTicket::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "supportTickets")
@@ -107,8 +124,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("deletedProducts")
             .snapshots()
             .map { snap ->
-                snap.toObjects(DeletedProduct::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.deletedAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(DeletedProduct::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.deletedAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "deletedProducts")
@@ -119,8 +137,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("backupRecords")
             .snapshots()
             .map { snap ->
-                snap.toObjects(BackupRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(BackupRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "backupRecords")
@@ -131,8 +150,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         db.collection("auditLogs")
             .snapshots()
             .map { snap ->
-                snap.toObjects(AuditLog::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching { doc.toObject(AuditLog::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "auditLogs")
@@ -412,6 +432,76 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    suspend fun checkCloudDiagnostics(): CloudDiagnosticsSummary {
+        val email = auth.currentUser?.email.orEmpty()
+        return try {
+            val allProds = db.collection("products").get(Source.SERVER).await()
+            val active = allProds.documents.count { it.getBoolean("isDeleted") == false }
+            val hidden = allProds.size() - active
+            val deleted = db.collection("deletedProducts").get(Source.SERVER).await().size()
+            val backups = db.collection("backupRecords").get(Source.SERVER).await().size()
+            val logs = db.collection("auditLogs").get(Source.SERVER).await().size()
+            val imagesCount = runCatching {
+                db.collection("productImages").get(Source.SERVER).await().size()
+            }.getOrElse {
+                allProds.documents.sumOf { (it.get("imageIds") as? List<*>)?.size ?: 0 }
+            }
+            CloudDiagnosticsSummary(
+                signedInEmail = email,
+                activeProductsOnServer = active,
+                hiddenProductsOnServer = hidden,
+                imagesOnServer = imagesCount,
+                recycleBinOnServer = deleted,
+                backupsOnServer = backups,
+                auditLogsOnServer = logs
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CloudDiagnosticsSummary(
+                signedInEmail = email,
+                error = e.localizedMessage ?: "Server unreachable"
+            )
+        }
+    }
+
+    suspend fun recoverHiddenProducts(): Result<Int> = runCatching {
+        val allProds = db.collection("products").get(Source.SERVER).await()
+        val hiddenDocs = allProds.documents.filter { it.getBoolean("isDeleted") != false }
+        if (hiddenDocs.isEmpty()) return@runCatching 0
+        var count = 0
+        hiddenDocs.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { doc ->
+                batch.update(
+                    doc.reference,
+                    mapOf(
+                        "isDeleted" to false,
+                        "isAvailable" to true,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                count++
+            }
+            batch.commit().await()
+        }
+        logAudit("RECOVER_HIDDEN_PRODUCTS", "products", "batch", "Recovered $count hidden products")
+        count
+    }
+
+    suspend fun shouldRunAutoDailyBackup(): Boolean {
+        return try {
+            val prods = db.collection("products").whereEqualTo("isDeleted", false).limit(1).get().await()
+            if (prods.isEmpty) return false
+            val backups = db.collection("backupRecords").whereEqualTo("status", "SUCCESS").limit(10).get().await()
+            val nowSec = System.currentTimeMillis() / 1000L
+            val newestSec = backups.documents.maxOfOrNull { it.getTimestamp("createdAt")?.seconds ?: 0L } ?: 0L
+            (nowSec - newestSec) > 86_400L
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // --- Automated / On-Demand Backups & Restore ---
     suspend fun createDatabaseBackup(backupType: String = "FULL_SNAPSHOT", retentionDays: Long = 30L): Result<BackupRecord> =
         runCatching {
@@ -424,40 +514,68 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                 val productsSnap = db.collection("products").get().await()
                 val couponsSnap = db.collection("coupons").get().await()
                 val ordersSnap = db.collection("orders").get().await()
-                val imagesSnap = db.collection("productImages").get().await()
+                val imagesSnap = runCatching { db.collection("productImages").get().await() }.getOrNull()
 
-                val imageBytes = imagesSnap.documents.sumOf { it.getLong("sizeBytes") ?: 0L }
-                val payloadJson = JSONObject().apply {
-                    put("backupId", backupId)
-                    put("backupType", backupType)
-                    put("categories", JSONArray(categoriesSnap.documents.map { d ->
-                        JSONObject(d.data?.filterValues { it is String || it is Number || it is Boolean } ?: emptyMap<String, Any>()).put("_id", d.id)
-                    }))
-                    put("products", JSONArray(productsSnap.documents.map { d ->
-                        JSONObject().apply {
-                            put("_id", d.id)
-                            put("sku", d.getString("sku") ?: "")
-                            put("nameEn", d.getString("nameEn") ?: "")
-                            put("nameTe", d.getString("nameTe") ?: "")
-                            put("categoryId", d.getString("categoryId") ?: "")
-                            put("categoryNameEn", d.getString("categoryNameEn") ?: "")
-                            put("originalPrice", d.getDouble("originalPrice") ?: 0.0)
-                            put("sellingPrice", d.getDouble("sellingPrice") ?: 0.0)
-                            put("stock", d.getLong("stock") ?: 0L)
-                            put("isDeleted", d.getBoolean("isDeleted") ?: false)
-                            put("imageIds", JSONArray(d.get("imageIds") as? List<*> ?: emptyList<String>()))
-                            put("imageUrls", JSONArray(d.get("imageUrls") as? List<*> ?: emptyList<String>()))
-                        }
-                    }))
-                    put("imageManifest", JSONArray(imagesSnap.documents.map { d ->
+                val imageCount = imagesSnap?.size()?.toLong()
+                    ?: productsSnap.documents.sumOf { ((it.get("imageIds") as? List<*>)?.size ?: 0).toLong() }
+                val imageBytes = imagesSnap?.documents?.sumOf { it.getLong("sizeBytes") ?: 0L } ?: 0L
+
+                val productsJson = JSONArray(productsSnap.documents.map { d ->
+                    JSONObject().apply {
+                        put("_id", d.id)
+                        put("sku", d.getString("sku") ?: "")
+                        put("nameEn", d.getString("nameEn") ?: "")
+                        put("nameTe", d.getString("nameTe") ?: "")
+                        put("descriptionEn", d.getString("descriptionEn") ?: "")
+                        put("descriptionTe", d.getString("descriptionTe") ?: "")
+                        put("categoryId", d.getString("categoryId") ?: "")
+                        put("categoryNameEn", d.getString("categoryNameEn") ?: "")
+                        put("originalPrice", d.getDouble("originalPrice") ?: 0.0)
+                        put("sellingPrice", d.getDouble("sellingPrice") ?: 0.0)
+                        put("stock", d.getLong("stock") ?: 0L)
+                        put("specifications", d.getString("specifications") ?: "")
+                        put("colors", JSONArray(d.get("colors") as? List<*> ?: emptyList<String>()))
+                        put("sizes", JSONArray(d.get("sizes") as? List<*> ?: emptyList<String>()))
+                        put("isNewArrival", d.getBoolean("isNewArrival") ?: true)
+                        put("isTrending", d.getBoolean("isTrending") ?: false)
+                        put("isBestSeller", d.getBoolean("isBestSeller") ?: false)
+                        put("isDeleted", d.getBoolean("isDeleted") ?: false)
+                        put("imageIds", JSONArray(d.get("imageIds") as? List<*> ?: emptyList<String>()))
+                        put("imageUrls", JSONArray(d.get("imageUrls") as? List<*> ?: emptyList<String>()))
+                    }
+                })
+
+                val categoriesJson = JSONArray(categoriesSnap.documents.map { d ->
+                    JSONObject(d.data?.filterValues { it is String || it is Number || it is Boolean } ?: emptyMap<String, Any>()).put("_id", d.id)
+                })
+
+                val manifestJson = if (imagesSnap != null) {
+                    JSONArray(imagesSnap.documents.map { d ->
                         JSONObject().apply {
                             put("imageId", d.id)
                             put("productId", d.getString("productId") ?: "")
                             put("sizeBytes", d.getLong("sizeBytes") ?: 0L)
                             put("mimeType", d.getString("mimeType") ?: "image/jpeg")
                         }
-                    }))
+                    })
+                } else JSONArray()
+
+                var payloadJson = JSONObject().apply {
+                    put("backupId", backupId)
+                    put("backupType", backupType)
+                    put("categories", categoriesJson)
+                    put("products", productsJson)
+                    put("imageManifest", manifestJson)
                 }.toString()
+
+                if (payloadJson.length > 650_000) {
+                    payloadJson = JSONObject().apply {
+                        put("backupId", backupId)
+                        put("backupType", backupType)
+                        put("categories", categoriesJson)
+                        put("products", productsJson)
+                    }.toString()
+                }
 
                 val itemCount = (categoriesSnap.size() + productsSnap.size() + couponsSnap.size() + ordersSnap.size()).toLong()
                 val totalBytes = payloadJson.toByteArray().size.toLong() + imageBytes
@@ -466,25 +584,25 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     "backupType" to backupType,
                     "status" to "SUCCESS",
                     "itemCount" to itemCount,
-                    "imageCount" to imagesSnap.size().toLong(),
+                    "imageCount" to imageCount,
                     "sizeBytes" to totalBytes,
                     "retentionDays" to retentionDays.coerceIn(1L, 365L),
                     "storageLocation" to "Cloud Firestore Enterprise + Device Exportable JSON",
-                    "snapshotPayloadJson" to payloadJson.take(650_000),
+                    "snapshotPayloadJson" to payloadJson.take(690_000),
                     "errorMessage" to "",
                     "createdBy" to uid,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
                 ref.set(recordData).await()
-                pruneExpiredBackups(retentionDays)
-                logAudit("CREATE_BACKUP", "backupRecords", backupId, "Type=$backupType Items=$itemCount Images=${imagesSnap.size()}")
+                runCatching { pruneExpiredBackups(retentionDays) }
+                logAudit("CREATE_BACKUP", "backupRecords", backupId, "Type=$backupType Items=$itemCount Images=$imageCount")
 
                 BackupRecord(
                     id = backupId,
                     backupType = backupType,
                     status = "SUCCESS",
                     itemCount = itemCount,
-                    imageCount = imagesSnap.size().toLong(),
+                    imageCount = imageCount,
                     sizeBytes = totalBytes,
                     retentionDays = retentionDays,
                     storageLocation = "Cloud Firestore Enterprise + Device Exportable JSON",
@@ -504,10 +622,10 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                             "itemCount" to 0L,
                             "imageCount" to 0L,
                             "sizeBytes" to 0L,
-                            "retentionDays" to retentionDays,
+                            "retentionDays" to retentionDays.coerceIn(1L, 365L),
                             "storageLocation" to "Failed",
                             "snapshotPayloadJson" to "",
-                            "errorMessage" to (e.localizedMessage ?: "Backup failed"),
+                            "errorMessage" to (e.localizedMessage ?: "Backup failed").take(450),
                             "createdBy" to uid,
                             "createdAt" to FieldValue.serverTimestamp()
                         )
@@ -521,59 +639,85 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
         require(record.snapshotPayloadJson.isNotBlank()) { "Backup snapshot JSON is empty" }
         val root = JSONObject(record.snapshotPayloadJson)
         val products = root.optJSONArray("products") ?: JSONArray()
-        var restoredCount = 0
-        val batch = db.batch()
-        for (i in 0 until products.length()) {
-            val obj = products.optJSONObject(i) ?: continue
+        require(products.length() > 0) { "This backup contains 0 products to restore" }
+
+        val entries = (0 until products.length()).mapNotNull { i ->
+            val obj = products.optJSONObject(i) ?: return@mapNotNull null
             val id = obj.optString("_id")
-            if (id.isBlank()) continue
-            val imageUrls = mutableListOf<String>()
-            val urlsJson = obj.optJSONArray("imageUrls")
-            if (urlsJson != null) {
-                for (j in 0 until urlsJson.length()) imageUrls.add(urlsJson.optString(j))
-            }
-            val imageIds = mutableListOf<String>()
-            val idsJson = obj.optJSONArray("imageIds")
-            if (idsJson != null) {
-                for (j in 0 until idsJson.length()) imageIds.add(idsJson.optString(j))
-            }
-            val ref = db.collection("products").document(id)
-            batch.set(
-                ref,
-                mapOf(
-                    "sku" to obj.optString("sku", "RESTORED"),
-                    "nameEn" to obj.optString("nameEn", "Product"),
-                    "nameTe" to obj.optString("nameTe", obj.optString("nameEn", "Product")),
-                    "descriptionEn" to "",
-                    "descriptionTe" to "",
-                    "categoryId" to obj.optString("categoryId", "cat_general"),
-                    "categoryNameEn" to obj.optString("categoryNameEn", "General Store"),
-                    "imageUrls" to imageUrls,
-                    "imageIds" to imageIds,
-                    "originalPrice" to obj.optDouble("originalPrice", 0.0),
-                    "sellingPrice" to obj.optDouble("sellingPrice", 0.0),
-                    "discountPercent" to 0L,
-                    "stock" to obj.optLong("stock", 0L),
-                    "lowStockThreshold" to 5L,
-                    "colors" to emptyList<String>(),
-                    "sizes" to emptyList<String>(),
-                    "specifications" to "",
-                    "isAvailable" to true,
-                    "isTrending" to false,
-                    "isBestSeller" to false,
-                    "isNewArrival" to false,
-                    "isFeaturedOffer" to false,
-                    "ratingAverage" to 0.0,
-                    "reviewCount" to 0L,
-                    "isDeleted" to obj.optBoolean("isDeleted", false),
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            )
-            restoredCount++
+            if (id.isBlank()) null else id to obj
         }
-        batch.update(db.collection("backupRecords").document(record.id), "status", "RESTORED")
-        batch.commit().await()
+        require(entries.isNotEmpty()) { "No valid product entries in backup" }
+
+        var restoredCount = 0
+        entries.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (id, obj) ->
+                val imageUrls = mutableListOf<String>()
+                val urlsJson = obj.optJSONArray("imageUrls")
+                if (urlsJson != null) {
+                    for (j in 0 until urlsJson.length()) {
+                        val u = urlsJson.optString(j)
+                        if (u.isNotBlank()) imageUrls.add(u)
+                    }
+                }
+                val imageIds = mutableListOf<String>()
+                val idsJson = obj.optJSONArray("imageIds")
+                if (idsJson != null) {
+                    for (j in 0 until idsJson.length()) {
+                        val imgId = idsJson.optString(j)
+                        if (imgId.isNotBlank()) imageIds.add(imgId)
+                    }
+                }
+                val colors = mutableListOf<String>()
+                val colorsJson = obj.optJSONArray("colors")
+                if (colorsJson != null) {
+                    for (j in 0 until colorsJson.length()) colors.add(colorsJson.optString(j))
+                }
+                val sizes = mutableListOf<String>()
+                val sizesJson = obj.optJSONArray("sizes")
+                if (sizesJson != null) {
+                    for (j in 0 until sizesJson.length()) sizes.add(sizesJson.optString(j))
+                }
+                val ref = db.collection("products").document(id)
+                batch.set(
+                    ref,
+                    mapOf(
+                        "sku" to obj.optString("sku", "RESTORED").ifBlank { "RESTORED" },
+                        "nameEn" to obj.optString("nameEn", "Product").ifBlank { "Product" },
+                        "nameTe" to obj.optString("nameTe", obj.optString("nameEn", "Product")).ifBlank { "Product" },
+                        "descriptionEn" to obj.optString("descriptionEn", ""),
+                        "descriptionTe" to obj.optString("descriptionTe", ""),
+                        "categoryId" to obj.optString("categoryId", "cat_general").ifBlank { "cat_general" },
+                        "categoryNameEn" to obj.optString("categoryNameEn", "General Store"),
+                        "imageUrls" to imageUrls.take(10),
+                        "imageIds" to imageIds.take(10),
+                        "originalPrice" to obj.optDouble("originalPrice", 0.0),
+                        "sellingPrice" to obj.optDouble("sellingPrice", 0.0),
+                        "discountPercent" to 0L,
+                        "stock" to obj.optLong("stock", 1L).coerceAtLeast(0L),
+                        "lowStockThreshold" to 5L,
+                        "colors" to colors.take(15),
+                        "sizes" to sizes.take(15),
+                        "specifications" to obj.optString("specifications", ""),
+                        "isAvailable" to true,
+                        "isTrending" to obj.optBoolean("isTrending", false),
+                        "isBestSeller" to obj.optBoolean("isBestSeller", false),
+                        "isNewArrival" to obj.optBoolean("isNewArrival", true),
+                        "isFeaturedOffer" to false,
+                        "ratingAverage" to 0.0,
+                        "reviewCount" to 0L,
+                        "isDeleted" to false,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                restoredCount++
+            }
+            batch.commit().await()
+        }
+        runCatching {
+            db.collection("backupRecords").document(record.id).update("status", "RESTORED").await()
+        }
         logAudit("RESTORE_BACKUP", "backupRecords", record.id, "Restored $restoredCount products")
         restoredCount
     }

@@ -211,6 +211,7 @@ private fun AuthenticatedStoreApp(
     val deletedProducts by vm.deletedProducts.collectAsStateWithLifecycle()
     val backupRecords by vm.backupRecords.collectAsStateWithLifecycle()
     val auditLogs by vm.auditLogs.collectAsStateWithLifecycle()
+    val cloudDiagnostics by vm.cloudDiagnostics.collectAsStateWithLifecycle()
 
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var overlay by remember { mutableStateOf<OverlayRoute>(OverlayRoute.None) }
@@ -376,6 +377,8 @@ private fun AuthenticatedStoreApp(
                     auditLogs = auditLogs,
                     shopSettings = shopSettings,
                     isBusy = isBusy,
+                    cloudDiagnostics = cloudDiagnostics,
+                    snackbarHostState = snackbarHostState,
                     onBack = { overlay = OverlayRoute.None },
                     onUploadImage = vm::uploadSingleProductImage,
                     onSaveProduct = { prod, preferredNewId, onSaved -> vm.saveProduct(prod, onSaved, preferredNewId) },
@@ -391,6 +394,8 @@ private fun AuthenticatedStoreApp(
                     onBroadcastNotification = vm::broadcastNotificationAdmin,
                     onRestoreProduct = vm::restoreProduct,
                     onPermanentDeleteProduct = vm::permanentlyDeleteProduct,
+                    onCheckCloudDiagnostics = vm::checkCloudDiagnostics,
+                    onRecoverHiddenProducts = vm::recoverHiddenProducts,
                     onRunBackup = vm::runBackupNow,
                     onRestoreFromBackup = vm::restoreFromBackup,
                     onUpdateShopSettings = vm::updateShopSettings

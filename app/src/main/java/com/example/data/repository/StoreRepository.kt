@@ -216,8 +216,11 @@ class StoreRepository(private val db: FirebaseFirestore) {
         db.collection("categories")
             .snapshots()
             .map { snap ->
-                snap.toObjects(Category::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedBy { it.sortOrder }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(Category::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedBy { it.sortOrder }
             }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "categories")
@@ -244,8 +247,11 @@ class StoreRepository(private val db: FirebaseFirestore) {
             .whereEqualTo("isDeleted", false)
             .snapshots()
             .map { snap ->
-                snap.toObjects(Product::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(Product::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "products")
@@ -354,7 +360,13 @@ class StoreRepository(private val db: FirebaseFirestore) {
     fun observeWishlist(userId: String): Flow<List<WishlistItem>> =
         db.collection("users").document(userId).collection("wishlist")
             .snapshots()
-            .map { it.toObjects(WishlistItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }
+            .map { snap ->
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(WishlistItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }
+            }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "users/$userId/wishlist")
                 throw error
@@ -421,8 +433,11 @@ class StoreRepository(private val db: FirebaseFirestore) {
         db.collection("banners")
             .snapshots()
             .map { snap ->
-                snap.toObjects(Banner::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedBy { it.sortOrder }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(Banner::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedBy { it.sortOrder }
             }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "banners")
@@ -463,7 +478,13 @@ class StoreRepository(private val db: FirebaseFirestore) {
     fun observeCoupons(): Flow<List<Coupon>> =
         db.collection("coupons")
             .snapshots()
-            .map { it.toObjects(Coupon::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }
+            .map { snap ->
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(Coupon::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }
+            }
             .catch { error ->
                 handleIfActive(error, OperationType.LIST, "coupons")
                 throw error

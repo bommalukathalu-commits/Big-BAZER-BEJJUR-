@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
@@ -26,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,6 +56,7 @@ import com.example.data.model.PaymentRecord
 import com.example.data.model.ShopSettings
 import com.example.data.model.SupportTicket
 import com.example.data.model.UserProfile
+import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
@@ -332,6 +335,9 @@ fun AdminBackupsSettingsTab(
     productsCount: Int,
     shopSettings: ShopSettings,
     isBusy: Boolean,
+    cloudDiagnostics: CloudDiagnosticsSummary?,
+    onCheckCloudDiagnostics: () -> Unit,
+    onRecoverHiddenProducts: () -> Unit,
     onRunBackup: (String, (BackupRecord) -> Unit) -> Unit,
     onRestoreFromBackup: (BackupRecord) -> Unit,
     onUpdateShopSettings: (ShopSettings) -> Unit
@@ -372,6 +378,80 @@ fun AdminBackupsSettingsTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Live Cloud Server Status & Recovery
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Live Cloud Server Status & Recovery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Verify live data on Firebase server (products, images, recycle bin, backups, audit logs) and recover any hidden products.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        onClick = onCheckCloudDiagnostics,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth().testTag("check_cloud_server_btn")
+                    ) {
+                        if (isBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text("Check Cloud Server")
+                    }
+
+                    if (cloudDiagnostics != null) {
+                        HorizontalDivider()
+                        Text(
+                            "Signed-in Account: ${cloudDiagnostics.signedInEmail.ifBlank { "Not signed in" }}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (cloudDiagnostics.error.isNotBlank()) {
+                            Text(
+                                "Server Error: ${cloudDiagnostics.error}",
+                                color = ErrorRed,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            Text(
+                                "Active Products: ${cloudDiagnostics.activeProductsOnServer} | Hidden Products: ${cloudDiagnostics.hiddenProductsOnServer}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "Images: ${cloudDiagnostics.imagesOnServer} | Recycle Bin: ${cloudDiagnostics.recycleBinOnServer}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "Cloud Backups: ${cloudDiagnostics.backupsOnServer} | Audit Logs: ${cloudDiagnostics.auditLogsOnServer}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            if (cloudDiagnostics.hiddenProductsOnServer > 0) {
+                                Button(
+                                    onClick = onRecoverHiddenProducts,
+                                    enabled = !isBusy,
+                                    modifier = Modifier.fillMaxWidth().testTag("recover_hidden_products_btn")
+                                ) {
+                                    Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Recover ${cloudDiagnostics.hiddenProductsOnServer} Hidden Products")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Backups & Storage Monitoring
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -381,6 +461,12 @@ fun AdminBackupsSettingsTab(
                         "Retention Policy: ${shopSettings.backupRetentionDays}-day rolling retention with automatic pruning. Active catalog: $productsCount products | Total backup footprint: ${totalBackupBytes / 1024} KB.",
                         style = MaterialTheme.typography.bodySmall
                     )
+                    if (isBusy) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text("Syncing backup with cloud server...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { onRunBackup("FULL_SNAPSHOT") {} },
@@ -399,7 +485,14 @@ fun AdminBackupsSettingsTab(
                             Text("Image Backup")
                         }
                     }
-                    backupRecords.take(5).forEach { rec ->
+                    if (backupRecords.isEmpty()) {
+                        Text(
+                            "No backups found yet. Tap 'Full DB Backup' to save a snapshot of your catalog.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    backupRecords.take(15).forEach { rec ->
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -414,7 +507,16 @@ fun AdminBackupsSettingsTab(
                                             pendingExportJson = rec.snapshotPayloadJson
                                             exportDocLauncher.launch("bigbazer_backup_${rec.id}.json")
                                         }) { Text("Export JSON") }
-                                        TextButton(onClick = { onRestoreFromBackup(rec) }) { Text("Restore") }
+                                        TextButton(
+                                            onClick = { onRestoreFromBackup(rec) },
+                                            enabled = !isBusy
+                                        ) { Text("Restore") }
+                                    } else if (rec.status != "FAILED") {
+                                        Text(
+                                            "No restorable product data in this snapshot.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }

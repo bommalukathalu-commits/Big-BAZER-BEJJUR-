@@ -43,8 +43,11 @@ class CartAndOrderRepository(private val db: FirebaseFirestore) {
         db.collection("users").document(userId).collection("cart")
             .snapshots()
             .map { snap ->
-                snap.toObjects(CartItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedBy { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(CartItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedBy { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "users/$userId/cart")
@@ -180,8 +183,11 @@ class CartAndOrderRepository(private val db: FirebaseFirestore) {
             .whereEqualTo("userId", userId)
             .snapshots()
             .map { snap ->
-                snap.toObjects(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(Order::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "orders")
@@ -193,8 +199,11 @@ class CartAndOrderRepository(private val db: FirebaseFirestore) {
             .whereEqualTo("userId", userId)
             .snapshots()
             .map { snap ->
-                snap.toObjects(PaymentRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+                snap.documents.mapNotNull { doc ->
+                    runCatching {
+                        doc.toObject(PaymentRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    }.getOrNull()
+                }.sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
             .catch { error ->
                 if (auth.currentUser != null) handleFirestoreError(error, OperationType.LIST, "payments")

@@ -47,6 +47,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -82,6 +84,7 @@ import com.example.data.model.ShopSettings
 import com.example.data.model.SupportTicket
 import com.example.data.model.UserProfile
 import com.example.data.repository.AdminAnalyticsSummary
+import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.data.util.ImageProcessor
 import com.example.data.util.ProcessedImagePayload
 import com.example.ui.components.CloudProductImage
@@ -121,6 +124,8 @@ fun AdminPanelScreen(
     auditLogs: List<AuditLog>,
     shopSettings: ShopSettings,
     isBusy: Boolean,
+    cloudDiagnostics: CloudDiagnosticsSummary?,
+    snackbarHostState: SnackbarHostState? = null,
     onBack: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
     onSaveProduct: (Product, String, () -> Unit) -> Unit,
@@ -136,6 +141,8 @@ fun AdminPanelScreen(
     onBroadcastNotification: (String, String, String, String, String) -> Unit,
     onRestoreProduct: (DeletedProduct) -> Unit,
     onPermanentDeleteProduct: (DeletedProduct) -> Unit,
+    onCheckCloudDiagnostics: () -> Unit,
+    onRecoverHiddenProducts: () -> Unit,
     onRunBackup: (String, (BackupRecord) -> Unit) -> Unit,
     onRestoreFromBackup: (BackupRecord) -> Unit,
     onUpdateShopSettings: (ShopSettings) -> Unit
@@ -154,6 +161,7 @@ fun AdminPanelScreen(
     )
 
     Scaffold(
+        snackbarHost = { if (snackbarHostState != null) SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Owner Admin Console", fontWeight = FontWeight.Bold) },
@@ -186,6 +194,10 @@ fun AdminPanelScreen(
                 1 -> AdminProductsTab(
                     products = products,
                     categories = categories,
+                    deletedCount = deletedProducts.size,
+                    backupsCount = backupRecords.size,
+                    onOpenRecycleBin = { selectedTab = 5 },
+                    onOpenBackups = { selectedTab = 6 },
                     onUploadImage = onUploadImage,
                     onSaveProduct = onSaveProduct,
                     onSoftDeleteProduct = onSoftDeleteProduct
@@ -224,6 +236,9 @@ fun AdminPanelScreen(
                     productsCount = products.size,
                     shopSettings = shopSettings,
                     isBusy = isBusy,
+                    cloudDiagnostics = cloudDiagnostics,
+                    onCheckCloudDiagnostics = onCheckCloudDiagnostics,
+                    onRecoverHiddenProducts = onRecoverHiddenProducts,
                     onRunBackup = onRunBackup,
                     onRestoreFromBackup = onRestoreFromBackup,
                     onUpdateShopSettings = onUpdateShopSettings
@@ -320,6 +335,10 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
 private fun AdminProductsTab(
     products: List<Product>,
     categories: List<Category>,
+    deletedCount: Int,
+    backupsCount: Int,
+    onOpenRecycleBin: () -> Unit,
+    onOpenBackups: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
     onSaveProduct: (Product, String, () -> Unit) -> Unit,
     onSoftDeleteProduct: (Product, String) -> Unit
@@ -346,6 +365,29 @@ private fun AdminProductsTab(
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text("Add New Product & Upload Cloud Images")
+            }
+        }
+
+        if (products.isEmpty() && (deletedCount > 0 || backupsCount > 0)) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Recovery Options Available", fontWeight = FontWeight.Bold)
+                        if (deletedCount > 0) {
+                            TextButton(onClick = onOpenRecycleBin) {
+                                Text("Open Recycle Bin ($deletedCount deleted items)")
+                            }
+                        }
+                        if (backupsCount > 0) {
+                            TextButton(onClick = onOpenBackups) {
+                                Text("Open Cloud Backups ($backupsCount snapshots)")
+                            }
+                        }
+                    }
+                }
             }
         }
 
