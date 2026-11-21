@@ -80,6 +80,8 @@
         "categoryNameEn": { "type": "string" },
         "imageUrls": { "type": "array", "description": "Up to 10 cloud image URIs (cloudimg:// or https://)" },
         "imageIds": { "type": "array", "description": "Up to 10 unique cloud image IDs" },
+        "videoUrl": { "type": "string", "description": "Optional cloudvid:// or https:// product video URI" },
+        "videoId": { "type": "string", "description": "Optional unique cloud video ID" },
         "originalPrice": { "type": "number" },
         "sellingPrice": { "type": "number" },
         "discountPercent": { "type": "integer" },
@@ -119,6 +121,23 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["imageId", "productId", "base64Data", "mimeType", "sizeBytes", "uploadedBy", "status", "createdAt"]
+    },
+    "ProductVideo": {
+      "title": "ProductVideo",
+      "description": "Cloud-hosted compressed product video clip record with unique ID and metadata",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "productId": { "type": "string" },
+        "base64Data": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "sizeBytes": { "type": "integer" },
+        "durationMs": { "type": "integer" },
+        "uploadedBy": { "type": "string" },
+        "status": { "type": "string", "enum": ["UPLOADED", "PUBLISHED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "productId", "base64Data", "mimeType", "sizeBytes", "uploadedBy", "status", "createdAt"]
     },
     "Review": {
       "title": "Review",
@@ -447,6 +466,10 @@
     "/productImages/{imageId}": {
       "schema": { "$ref": "ProductImage" },
       "description": "Cloud-backed compressed product image blobs"
+    },
+    "/productVideos/{videoId}": {
+      "schema": { "$ref": "ProductVideo" },
+      "description": "Cloud-backed compressed product video clips"
     },
     "/products/{productId}/reviews/{reviewId}": {
       "schema": { "$ref": "Review" },

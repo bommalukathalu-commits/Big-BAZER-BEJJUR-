@@ -15,6 +15,7 @@ import com.example.data.model.UserProfile
 import com.example.data.model.WishlistItem
 import com.example.data.util.OperationType
 import com.example.data.util.ProcessedImagePayload
+import com.example.data.util.ProcessedVideoPayload
 import com.example.data.util.handleFirestoreError
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -305,6 +306,35 @@ class StoreRepository(private val db: FirebaseFirestore) {
         try {
             ref.set(data).await()
             imageId to "cloudimg://$imageId"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, ref.path)
+            throw e
+        }
+    }
+
+    suspend fun uploadProductVideo(
+        productId: String,
+        payload: ProcessedVideoPayload
+    ): Result<Pair<String, String>> = runCatching {
+        val uid = requireUserId()
+        val videoId = "vid_${UUID.randomUUID().toString().replace("-", "").take(16)}"
+        val ref = db.collection("productVideos").document(videoId)
+        val data = mapOf(
+            "videoId" to videoId,
+            "productId" to productId,
+            "base64Data" to payload.base64Data,
+            "mimeType" to payload.mimeType,
+            "sizeBytes" to payload.sizeBytes.toLong(),
+            "durationMs" to payload.durationMs.coerceIn(0L, 60_000L),
+            "uploadedBy" to uid,
+            "status" to "PUBLISHED",
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        try {
+            ref.set(data).await()
+            videoId to "cloudvid://$videoId"
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

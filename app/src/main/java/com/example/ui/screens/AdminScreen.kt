@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +45,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -66,6 +70,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +93,8 @@ import com.example.data.repository.AdminAnalyticsSummary
 import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.data.util.ImageProcessor
 import com.example.data.util.ProcessedImagePayload
+import com.example.data.util.ProcessedVideoPayload
+import com.example.data.util.VideoProcessor
 import com.example.ui.components.CloudProductImage
 import com.example.ui.components.ImageCropEditorDialog
 import com.example.ui.theme.ErrorRed
@@ -105,6 +113,18 @@ data class ImageUploadSlot(
     val status: UploadSlotStatus = UploadSlotStatus.UPLOADING,
     val payload: ProcessedImagePayload? = null,
     val error: String = ""
+)
+
+data class VideoUploadState(
+    val videoId: String = "",
+    val cloudUrl: String = "",
+    val thumbnail: Bitmap? = null,
+    val durationMs: Long = 0L,
+    val sizeBytes: Int = 0,
+    val progressPct: Int = 0,
+    val isProcessingOrUploading: Boolean = false,
+    val error: String = "",
+    val payload: ProcessedVideoPayload? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -128,6 +148,7 @@ fun AdminPanelScreen(
     snackbarHostState: SnackbarHostState? = null,
     onBack: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
+    onUploadVideo: suspend (String, ProcessedVideoPayload) -> Result<Pair<String, String>> = { _, _ -> Result.failure(IllegalStateException("Video upload unavailable")) },
     onSaveProduct: (Product, String, () -> Unit) -> Unit,
     onSoftDeleteProduct: (Product, String) -> Unit,
     onSaveCategory: (Category, () -> Unit) -> Unit,
@@ -199,6 +220,7 @@ fun AdminPanelScreen(
                     onOpenRecycleBin = { selectedTab = 5 },
                     onOpenBackups = { selectedTab = 6 },
                     onUploadImage = onUploadImage,
+                    onUploadVideo = onUploadVideo,
                     onSaveProduct = onSaveProduct,
                     onSoftDeleteProduct = onSoftDeleteProduct
                 )
@@ -340,6 +362,7 @@ private fun AdminProductsTab(
     onOpenRecycleBin: () -> Unit,
     onOpenBackups: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
+    onUploadVideo: suspend (String, ProcessedVideoPayload) -> Result<Pair<String, String>>,
     onSaveProduct: (Product, String, () -> Unit) -> Unit,
     onSoftDeleteProduct: (Product, String) -> Unit
 ) {
@@ -408,7 +431,14 @@ private fun AdminProductsTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(p.nameEn, fontWeight = FontWeight.Bold)
                         Text("${p.categoryNameEn} • ₹${p.sellingPrice.toInt()} • Stock: ${p.stock}", style = MaterialTheme.typography.bodySmall)
-                        Text("${p.resolvedImageUrls().size} cloud images", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                        Text(
+                            text = buildString {
+                                append("${p.resolvedImageUrls().size} cloud images")
+                                if (p.hasVideo()) append(" • Video ✓")
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
                     }
                     IconButton(onClick = {
                         editingProduct = p
@@ -431,6 +461,7 @@ private fun AdminProductsTab(
                 categories = categories,
                 onDismiss = { showEditor = false },
                 onUploadImage = onUploadImage,
+                onUploadVideo = onUploadVideo,
                 onPublish = { prod, preferredId ->
                     onSaveProduct(prod, preferredId) { showEditor = false }
                 }
@@ -445,6 +476,7 @@ private fun ProductEditorDialog(
     categories: List<Category>,
     onDismiss: () -> Unit,
     onUploadImage: suspend (String, ProcessedImagePayload, Int) -> Result<Pair<String, String>>,
+    onUploadVideo: suspend (String, ProcessedVideoPayload) -> Result<Pair<String, String>>,
     onPublish: (Product, String) -> Unit
 ) {
     val context = LocalContext.current
@@ -492,6 +524,22 @@ private fun ProductEditorDialog(
     var currentCropBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var imageErrorMessage by remember { mutableStateOf<String?>(null) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    var videoCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    var externalVideoUrl by remember {
+        mutableStateOf(
+            existing?.videoUrl?.takeIf { !it.startsWith(VideoProcessor.CLOUD_VIDEO_SCHEME) }.orEmpty()
+        )
+    }
+    var videoState by remember {
+        mutableStateOf(
+            VideoUploadState(
+                videoId = existing?.videoId.orEmpty(),
+                cloudUrl = existing?.resolvedVideoUrl()
+                    ?.takeIf { it.startsWith(VideoProcessor.CLOUD_VIDEO_SCHEME) }
+                    .orEmpty()
+            )
+        )
+    }
 
     val nextCropUri = pendingCropUris.firstOrNull()
     LaunchedEffect(nextCropUri) {
@@ -569,6 +617,72 @@ private fun ProductEditorDialog(
         }
     }
 
+    fun handleSelectedVideo(uri: Uri) {
+        videoState = VideoUploadState(isProcessingOrUploading = true, progressPct = 5)
+        scope.launch {
+            val compRes = VideoProcessor.compressForCloudUpload(context, uri) { pct ->
+                videoState = videoState.copy(progressPct = pct)
+            }
+            if (compRes.isFailure) {
+                videoState = VideoUploadState(
+                    error = compRes.exceptionOrNull()?.localizedMessage ?: "Video compression failed"
+                )
+                return@launch
+            }
+            val payload = compRes.getOrThrow()
+            videoState = videoState.copy(
+                thumbnail = payload.thumbnailBitmap,
+                durationMs = payload.durationMs,
+                sizeBytes = payload.sizeBytes,
+                progressPct = 95,
+                payload = payload
+            )
+            onUploadVideo(targetProdId, payload).fold(
+                onSuccess = { (vidId, cloudUrl) ->
+                    externalVideoUrl = ""
+                    videoState = videoState.copy(
+                        videoId = vidId,
+                        cloudUrl = cloudUrl,
+                        progressPct = 100,
+                        isProcessingOrUploading = false,
+                        error = ""
+                    )
+                },
+                onFailure = { err ->
+                    videoState = videoState.copy(
+                        isProcessingOrUploading = false,
+                        error = err.localizedMessage ?: "Video upload failed"
+                    )
+                }
+            )
+        }
+    }
+
+    fun retryVideoUpload() {
+        val payload = videoState.payload ?: return
+        videoState = videoState.copy(isProcessingOrUploading = true, error = "", progressPct = 90)
+        scope.launch {
+            onUploadVideo(targetProdId, payload).fold(
+                onSuccess = { (vidId, cloudUrl) ->
+                    externalVideoUrl = ""
+                    videoState = videoState.copy(
+                        videoId = vidId,
+                        cloudUrl = cloudUrl,
+                        progressPct = 100,
+                        isProcessingOrUploading = false,
+                        error = ""
+                    )
+                },
+                onFailure = { err ->
+                    videoState = videoState.copy(
+                        isProcessingOrUploading = false,
+                        error = err.localizedMessage ?: "Retry failed"
+                    )
+                }
+            )
+        }
+    }
+
     // Zero-permission Photo Picker (multi-image)
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 6)
@@ -576,6 +690,25 @@ private fun ProductEditorDialog(
         if (uris.isNotEmpty()) {
             imageErrorMessage = null
             pendingCropUris = pendingCropUris + uris
+        }
+    }
+
+    // Zero-permission Video Picker (Photo Picker VideoOnly)
+    val videoGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            handleSelectedVideo(uri)
+        }
+    }
+
+    // Zero-permission Video Capture via FileProvider
+    val videoCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CaptureVideo()
+    ) { success ->
+        val uri = videoCaptureUri
+        if (success && uri != null) {
+            handleSelectedVideo(uri)
         }
     }
 
@@ -590,7 +723,7 @@ private fun ProductEditorDialog(
         }
     }
 
-    val allUploaded = imageSlots.none { it.status != UploadSlotStatus.UPLOADED }
+    val allUploaded = imageSlots.none { it.status != UploadSlotStatus.UPLOADED } && !videoState.isProcessingOrUploading
     val hasAtLeastOneImage = imageSlots.any { it.status == UploadSlotStatus.UPLOADED }
     val failedSlots = imageSlots.filter { it.status == UploadSlotStatus.FAILED }
 
@@ -698,6 +831,133 @@ private fun ProductEditorDialog(
                     }
 
                     Spacer(Modifier.height(6.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Product Video (Optional • Auto-compressed up to 12s)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        videoGalleryLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                        )
+                                    },
+                                    enabled = !videoState.isProcessingOrUploading,
+                                    modifier = Modifier.weight(1f).testTag("pick_gallery_video_btn")
+                                ) {
+                                    Icon(Icons.Default.VideoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Pick Video")
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        val dir = File(context.cacheDir, "video_captures").apply { mkdirs() }
+                                        val file = File(dir, "vid_${System.currentTimeMillis()}.mp4")
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                        videoCaptureUri = uri
+                                        videoCaptureLauncher.launch(uri)
+                                    },
+                                    enabled = !videoState.isProcessingOrUploading,
+                                    modifier = Modifier.weight(1f).testTag("record_camera_video_btn")
+                                ) {
+                                    Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Record")
+                                }
+                            }
+
+                            if (videoState.isProcessingOrUploading) {
+                                LinearProgressIndicator(
+                                    progress = { (videoState.progressPct / 100f).coerceIn(0.05f, 1f) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = "Compressing & uploading video (${videoState.progressPct}%)...",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else if (videoState.cloudUrl.isNotBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val thumb = videoState.thumbnail
+                                    if (thumb != null) {
+                                        Image(
+                                            bitmap = thumb.asImageBitmap(),
+                                            contentDescription = "Video thumbnail",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Videocam, contentDescription = null, tint = SuccessGreen)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Cloud Video Ready", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                        }
+                                        if (videoState.sizeBytes > 0) {
+                                            Text(
+                                                text = "${(videoState.durationMs / 1000L).coerceAtLeast(1)}s • ${videoState.sizeBytes / 1024} KB",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = { videoState = VideoUploadState() },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove Video", tint = ErrorRed, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+
+                            if (videoState.error.isNotBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = videoState.error,
+                                        color = ErrorRed,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (videoState.payload != null) {
+                                        TextButton(onClick = { retryVideoUpload() }) {
+                                            Text("Retry")
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (videoState.cloudUrl.isBlank()) {
+                                OutlinedTextField(
+                                    value = externalVideoUrl,
+                                    onValueChange = { externalVideoUrl = it },
+                                    label = { Text("Or paste direct MP4 Video URL") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
                     OutlinedTextField(value = sku, onValueChange = { sku = it }, label = { Text("SKU / Product ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = nameEn, onValueChange = { nameEn = it }, label = { Text("Name (English)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = nameTe, onValueChange = { nameTe = it }, label = { Text("పేరు (Telugu)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -732,7 +992,7 @@ private fun ProductEditorDialog(
                         Checkbox(checked = isFeaturedOffer, onCheckedChange = { isFeaturedOffer = it }); Text("Offer", style = MaterialTheme.typography.labelSmall)
                     }
                     if (!allUploaded) {
-                        Text("Waiting for all cloud image uploads before publishing...", color = WarningAmber, style = MaterialTheme.typography.labelSmall)
+                        Text("Waiting for cloud media uploads before publishing...", color = WarningAmber, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -743,6 +1003,8 @@ private fun ProductEditorDialog(
                     val mrp = origPrice.toDoubleOrNull() ?: sellPrice.toDoubleOrNull() ?: 0.0
                     val sp = sellPrice.toDoubleOrNull() ?: 0.0
                     val uploadedSlots = imageSlots.filter { it.status == UploadSlotStatus.UPLOADED }
+                    val finalVideoUrl = videoState.cloudUrl.ifBlank { externalVideoUrl.trim() }
+                    val finalVideoId = if (videoState.cloudUrl.isNotBlank()) videoState.videoId else ""
                     onPublish(
                         Product(
                             id = existing?.id.orEmpty(),
@@ -755,6 +1017,8 @@ private fun ProductEditorDialog(
                             categoryNameEn = selectedCat?.nameEn ?: "General Store",
                             imageUrls = uploadedSlots.map { it.cloudUrl },
                             imageIds = uploadedSlots.map { it.imageId },
+                            videoUrl = finalVideoUrl,
+                            videoId = finalVideoId,
                             originalPrice = mrp,
                             sellingPrice = sp,
                             stock = stock.toLongOrNull() ?: 0L,

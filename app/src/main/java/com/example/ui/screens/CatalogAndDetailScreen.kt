@@ -35,11 +35,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,6 +83,7 @@ import com.example.data.model.WishlistItem
 import com.example.data.util.AppLanguage
 import com.example.ui.components.CloudProductImage
 import com.example.ui.components.ProductCard
+import com.example.ui.components.ProductVideoPlayer
 import com.example.ui.components.categoryIllustrationRes
 import com.example.ui.i18n.getStrings
 import com.example.ui.theme.ErrorRed
@@ -366,43 +369,84 @@ fun ProductDetailScreen(
             contentPadding = PaddingValues(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Swipeable Image Gallery
+            // Swipeable Image Gallery & Product Video Player
             item {
+                val productVideoUrl = product.resolvedVideoUrl()
+                var showVideoPlayer by remember(product.id) { mutableStateOf(false) }
+
                 Column {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp)
-                    ) { page ->
-                        CloudProductImage(
-                            imageUrl = images[page],
-                            contentDescription = product.localizedName(isTelugu),
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                    }
-                    if (images.size > 1) {
+                    if (!productVideoUrl.isNullOrBlank()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.Center
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            repeat(images.size) { idx ->
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = 4.dp)
-                                        .size(if (pagerState.currentPage == idx) 10.dp else 7.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (pagerState.currentPage == idx)
-                                                MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                                        )
-                                )
+                            FilterChip(
+                                selected = !showVideoPlayer,
+                                onClick = { showVideoPlayer = false },
+                                leadingIcon = {
+                                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                label = { Text("${strings.photosTab} (${images.size})") },
+                                modifier = Modifier.testTag("detail_photos_tab")
+                            )
+                            FilterChip(
+                                selected = showVideoPlayer,
+                                onClick = { showVideoPlayer = true },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                label = { Text(strings.watchVideoTab) },
+                                modifier = Modifier.testTag("detail_video_tab")
+                            )
+                        }
+                    }
+
+                    if (showVideoPlayer && !productVideoUrl.isNullOrBlank()) {
+                        ProductVideoPlayer(
+                            videoUrl = productVideoUrl,
+                            loadingText = strings.loadingVideo,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(300.dp)
+                        )
+                    } else {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(300.dp)
+                        ) { page ->
+                            CloudProductImage(
+                                imageUrl = images[page],
+                                contentDescription = product.localizedName(isTelugu),
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            )
+                        }
+                        if (images.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                repeat(images.size) { idx ->
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(horizontal = 4.dp)
+                                            .size(if (pagerState.currentPage == idx) 10.dp else 7.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (pagerState.currentPage == idx)
+                                                    MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                                            )
+                                    )
+                                }
                             }
                         }
                     }

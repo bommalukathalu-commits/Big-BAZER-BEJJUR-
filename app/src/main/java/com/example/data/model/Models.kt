@@ -121,6 +121,8 @@ data class Product(
     val categoryNameEn: String = "",
     val imageUrls: List<String> = emptyList(),
     val imageIds: List<String> = emptyList(),
+    val videoUrl: String = "",
+    val videoId: String = "",
     val originalPrice: Double = 0.0,
     val sellingPrice: Double = 0.0,
     val discountPercent: Long = 0L,
@@ -152,6 +154,15 @@ data class Product(
 
     fun primaryImageUrl(): String? = resolvedImageUrls().firstOrNull()
 
+    fun resolvedVideoUrl(): String? {
+        val cleanUrl = videoUrl.trim()
+        if (cleanUrl.isNotBlank()) return cleanUrl
+        val cleanId = videoId.trim()
+        return if (cleanId.isNotBlank()) "cloudvid://$cleanId" else null
+    }
+
+    fun hasVideo(): Boolean = !resolvedVideoUrl().isNullOrBlank()
+
     fun computedDiscountPercent(): Int {
         if (discountPercent > 0) return discountPercent.toInt()
         if (originalPrice > sellingPrice && originalPrice > 0) {
@@ -170,6 +181,8 @@ data class Product(
         "categoryNameEn" to categoryNameEn,
         "imageUrls" to imageUrls.take(10),
         "imageIds" to imageIds.take(10),
+        "videoUrl" to videoUrl.trim(),
+        "videoId" to videoId.trim(),
         "originalPrice" to originalPrice,
         "sellingPrice" to sellingPrice,
         "discountPercent" to computedDiscountPercent().toLong(),
@@ -421,6 +434,8 @@ data class DeletedProduct(
     val categoryNameEn: String = "",
     val imageUrls: List<String> = emptyList(),
     val imageIds: List<String> = emptyList(),
+    val videoUrl: String = "",
+    val videoId: String = "",
     val originalPrice: Double = 0.0,
     val sellingPrice: Double = 0.0,
     val discountPercent: Long = 0L,

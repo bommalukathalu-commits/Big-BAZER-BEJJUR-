@@ -109,7 +109,11 @@ data class AppStrings(
     val bejjurPromiseSubtitle: String,
     val chatStoreHelp: String,
     val myWishlistShortcut: String,
-    val myOrdersShortcut: String
+    val myOrdersShortcut: String,
+    val photosTab: String,
+    val watchVideoTab: String,
+    val videoBadge: String,
+    val loadingVideo: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -221,7 +225,11 @@ private val EnglishStrings = AppStrings(
     bejjurPromiseSubtitle = "Same-Day Local Delivery • Cash on Delivery & UPI • Easy Store Help",
     chatStoreHelp = "Chat with Store on WhatsApp",
     myWishlistShortcut = "Wishlist",
-    myOrdersShortcut = "Track Orders"
+    myOrdersShortcut = "Track Orders",
+    photosTab = "Photos",
+    watchVideoTab = "Product Video",
+    videoBadge = "Video",
+    loadingVideo = "Loading video..."
 )
 
 private val TeluguStrings = AppStrings(
@@ -331,5 +339,9 @@ private val TeluguStrings = AppStrings(
     bejjurPromiseSubtitle = "బెజ్జూర్‌లో అదే రోజు డెలివరీ • COD & UPI • తక్షణ సహాయం",
     chatStoreHelp = "WhatsApp లో షాప్‌ని అడగండి",
     myWishlistShortcut = "విష్‌లిస్ట్",
-    myOrdersShortcut = "ఆర్డర్లు"
+    myOrdersShortcut = "ఆర్డర్లు",
+    photosTab = "ఫోటోలు",
+    watchVideoTab = "వస్తువు వీడియో",
+    videoBadge = "వీడియో",
+    loadingVideo = "వీడియో లోడ్ అవుతోంది..."
 )

@@ -71,6 +71,7 @@ import com.example.data.util.UpdateCheckResult
 import com.example.ui.auth.SignInScreen
 import com.example.ui.auth.signOutUser
 import com.example.ui.components.APP_SHARE_LINK
+import com.example.ui.components.LocalAppFirestore
 import com.example.ui.components.LocalAppImageLoader
 import com.example.ui.components.ShareQrDialog
 import com.example.ui.components.ShareTarget
@@ -201,7 +202,10 @@ fun BigBazerAppRoot(
         )
     }
 
-    CompositionLocalProvider(LocalAppImageLoader provides imageLoader) {
+    CompositionLocalProvider(
+        LocalAppImageLoader provides imageLoader,
+        LocalAppFirestore provides db
+    ) {
         val user = currentUser
         if (user == null) {
             SignInScreen(
@@ -426,6 +430,7 @@ private fun AuthenticatedStoreApp(
                     snackbarHostState = snackbarHostState,
                     onBack = { overlay = OverlayRoute.None },
                     onUploadImage = vm::uploadSingleProductImage,
+                    onUploadVideo = vm::uploadSingleProductVideo,
                     onSaveProduct = { prod, preferredNewId, onSaved -> vm.saveProduct(prod, onSaved, preferredNewId) },
                     onSoftDeleteProduct = vm::softDeleteProduct,
                     onSaveCategory = vm::saveCategory,

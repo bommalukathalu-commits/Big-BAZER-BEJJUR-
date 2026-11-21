@@ -317,3 +317,40 @@ test("Recycle bin, backup records, and audit logs are strictly owner-only", asyn
     })
   );
 });
+
+test("Admin can upload product video clips and customers can view but not write them", async () => {
+  const ownerDb = testEnv.authenticatedContext(OWNER_UID, {
+    email: OWNER_EMAIL,
+    email_verified: true,
+  }).firestore();
+  const aliceDb = testEnv.authenticatedContext(CUSTOMER_A, { email: "alice@test.com", email_verified: true }).firestore();
+
+  await assertSucceeds(
+    ownerDb.collection("productVideos").doc("vid_1").set({
+      videoId: "vid_1",
+      productId: "prod_1",
+      base64Data: "AAAAIGZ0eXBpc29tAAACAGlzb21pc28y",
+      mimeType: "video/mp4",
+      sizeBytes: 24,
+      durationMs: 5000,
+      uploadedBy: OWNER_UID,
+      status: "PUBLISHED",
+      createdAt: serverTs(),
+    })
+  );
+
+  await assertSucceeds(aliceDb.collection("productVideos").doc("vid_1").get());
+  await assertFails(aliceDb.collection("productVideos").get());
+  await assertFails(
+    aliceDb.collection("productVideos").doc("vid_hack").set({
+      videoId: "vid_hack",
+      productId: "prod_1",
+      base64Data: "AAAAIGZ0eXBpc29tAAACAGlzb21pc28y",
+      mimeType: "video/mp4",
+      sizeBytes: 24,
+      uploadedBy: CUSTOMER_A,
+      status: "PUBLISHED",
+      createdAt: serverTs(),
+    })
+  );
+});

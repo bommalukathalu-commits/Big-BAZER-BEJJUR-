@@ -518,6 +518,13 @@ class BigBazerViewModel(
         com.example.data.util.ImageProcessor.cacheCloudImageBytes(appContext, imageId, payload.bytes)
     }
 
+    suspend fun uploadSingleProductVideo(
+        productId: String,
+        payload: com.example.data.util.ProcessedVideoPayload
+    ): Result<Pair<String, String>> = storeRepo.uploadProductVideo(productId, payload).onSuccess { (videoId, _) ->
+        com.example.data.util.VideoProcessor.cacheCloudVideoBytes(appContext, videoId, payload.bytes)
+    }
+
     fun saveProduct(product: Product, onSaved: () -> Unit = {}, preferredNewId: String = "") {
         viewModelScope.launch {
             _isBusy.value = true

@@ -347,6 +347,8 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     "categoryNameEn" to product.categoryNameEn,
                     "imageUrls" to product.imageUrls,
                     "imageIds" to product.imageIds,
+                    "videoUrl" to product.videoUrl,
+                    "videoId" to product.videoId,
                     "originalPrice" to product.originalPrice,
                     "sellingPrice" to product.sellingPrice,
                     "discountPercent" to product.discountPercent,
@@ -399,6 +401,8 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                     "categoryNameEn" to deleted.categoryNameEn,
                     "imageUrls" to deleted.imageUrls,
                     "imageIds" to deleted.imageIds,
+                    "videoUrl" to deleted.videoUrl,
+                    "videoId" to deleted.videoId,
                     "originalPrice" to deleted.originalPrice,
                     "sellingPrice" to deleted.sellingPrice,
                     "discountPercent" to deleted.discountPercent,
@@ -448,6 +452,9 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                 if (imgId.isNotBlank()) {
                     batch.delete(db.collection("productImages").document(imgId))
                 }
+            }
+            if (deleted.videoId.isNotBlank()) {
+                batch.delete(db.collection("productVideos").document(deleted.videoId))
             }
             batch.commit().await()
             logAudit(
@@ -602,6 +609,8 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                         put("isDeleted", d.getBoolean("isDeleted") ?: false)
                         put("imageIds", JSONArray(d.get("imageIds") as? List<*> ?: emptyList<String>()))
                         put("imageUrls", JSONArray(d.get("imageUrls") as? List<*> ?: emptyList<String>()))
+                        put("videoId", d.getString("videoId") ?: "")
+                        put("videoUrl", d.getString("videoUrl") ?: "")
                     }
                 })
 
@@ -754,6 +763,8 @@ class AdminOpsRepository(private val db: FirebaseFirestore) {
                         "categoryNameEn" to obj.optString("categoryNameEn", "General Store"),
                         "imageUrls" to imageUrls.take(10),
                         "imageIds" to imageIds.take(10),
+                        "videoUrl" to obj.optString("videoUrl", ""),
+                        "videoId" to obj.optString("videoId", ""),
                         "originalPrice" to obj.optDouble("originalPrice", 0.0),
                         "sellingPrice" to obj.optDouble("sellingPrice", 0.0),
                         "discountPercent" to 0L,

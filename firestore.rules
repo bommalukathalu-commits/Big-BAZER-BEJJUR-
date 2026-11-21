@@ -109,6 +109,8 @@ service cloud.firestore {
              isOptString(data, 'categoryNameEn', 100) &&
              (!('imageUrls' in data) || isBoundedStringList(data.imageUrls, 10, 600)) &&
              (!('imageIds' in data) || isBoundedStringList(data.imageIds, 10, 128)) &&
+             isOptString(data, 'videoUrl', 600) &&
+             isOptString(data, 'videoId', 128) &&
              data.originalPrice is number && data.originalPrice >= 0 && data.originalPrice <= 10000000 &&
              data.sellingPrice is number && data.sellingPrice >= 0 && data.sellingPrice <= 10000000 &&
              (!('discountPercent' in data) || (data.discountPercent is int && data.discountPercent >= 0 && data.discountPercent <= 99)) &&
@@ -137,6 +139,18 @@ service cloud.firestore {
              (!('width' in data) || (data.width is int && data.width > 0 && data.width <= 4096)) &&
              (!('height' in data) || (data.height is int && data.height > 0 && data.height <= 4096)) &&
              (!('sortOrder' in data) || (data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 50)) &&
+             data.uploadedBy is string && data.uploadedBy.size() >= 1 && data.uploadedBy.size() <= 128 &&
+             data.status in ['UPLOADED', 'PUBLISHED'] &&
+             validTs(data.createdAt);
+    }
+
+    function isValidProductVideo(data) {
+      return data.videoId is string && data.videoId.size() >= 1 && data.videoId.size() <= 128 &&
+             data.productId is string && data.productId.size() >= 1 && data.productId.size() <= 128 &&
+             data.base64Data is string && data.base64Data.size() >= 10 && data.base64Data.size() <= 800000 &&
+             data.mimeType is string && data.mimeType in ['video/mp4'] &&
+             data.sizeBytes is int && data.sizeBytes > 0 && data.sizeBytes <= 600000 &&
+             (!('durationMs' in data) || (data.durationMs is int && data.durationMs >= 0 && data.durationMs <= 60000)) &&
              data.uploadedBy is string && data.uploadedBy.size() >= 1 && data.uploadedBy.size() <= 128 &&
              data.status in ['UPLOADED', 'PUBLISHED'] &&
              validTs(data.createdAt);
@@ -442,12 +456,19 @@ service cloud.firestore {
       }
     }
 
-    // 5. Product Images (Cloud Storage Registry)
+    // 5. Product Images & Videos (Cloud Storage Registry)
     match /productImages/{imageId} {
       allow get: if isValidId(imageId) && isSignedIn();
       allow list: if isAdmin();
       allow create, update: if isValidId(imageId) && isAdmin() && isValidProductImage(incoming());
       allow delete: if isValidId(imageId) && isAdmin();
+    }
+
+    match /productVideos/{videoId} {
+      allow get: if isValidId(videoId) && isSignedIn();
+      allow list: if isAdmin();
+      allow create, update: if isValidId(videoId) && isAdmin() && isValidProductVideo(incoming());
+      allow delete: if isValidId(videoId) && isAdmin();
     }
 
     // 6. Orders & OrderItems

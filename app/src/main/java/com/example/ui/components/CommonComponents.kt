@@ -1,7 +1,9 @@
 package com.example.ui.components
 
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.annotation.DrawableRes
+import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,11 +39,14 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Toys
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material.icons.filled.Weekend
 import androidx.compose.material3.AlertDialog
@@ -58,6 +63,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -81,17 +87,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.R
 import com.example.data.model.Product
 import com.example.data.util.ImageProcessor
+import com.example.data.util.VideoProcessor
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.SuccessGreen
+import com.google.firebase.firestore.FirebaseFirestore
 
 val LocalAppImageLoader = compositionLocalOf<ImageLoader> {
     error("LocalAppImageLoader not provided")
+}
+
+val LocalAppFirestore = compositionLocalOf<FirebaseFirestore> {
+    error("LocalAppFirestore not provided")
 }
 
 @Composable
@@ -158,6 +176,98 @@ fun CloudProductImage(
                     }
                 }
             )
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+fun ProductVideoPlayer(
+    videoUrl: String,
+    loadingText: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val db = LocalAppFirestore.current
+    var resolvedUri by remember(videoUrl) { mutableStateOf<Uri?>(null) }
+    var isLoading by remember(videoUrl) { mutableStateOf(true) }
+    var errorText by remember(videoUrl) { mutableStateOf<String?>(null) }
+    var retryTick by remember(videoUrl) { mutableIntStateOf(0) }
+
+    LaunchedEffect(videoUrl, retryTick) {
+        isLoading = true
+        errorText = null
+        val res = VideoProcessor.resolveVideoPlayUri(context, db, videoUrl)
+        res.fold(
+            onSuccess = {
+                resolvedUri = it
+                isLoading = false
+            },
+            onFailure = { err ->
+                errorText = err.localizedMessage ?: "Video unavailable"
+                isLoading = false
+            }
+        )
+    }
+
+    Box(
+        modifier = modifier.background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        val uri = resolvedUri
+        when {
+            isLoading -> {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(loadingText, color = Color.White, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            errorText != null || uri == null -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Videocam, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(32.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = errorText ?: "Video unavailable",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = { retryTick++ }) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Retry", color = Color.White)
+                    }
+                }
+            }
+            else -> {
+                val exoPlayer = remember(uri) {
+                    ExoPlayer.Builder(context).build().apply {
+                        setMediaItem(MediaItem.fromUri(uri))
+                        repeatMode = Player.REPEAT_MODE_ONE
+                        prepare()
+                        playWhenReady = true
+                    }
+                }
+                DisposableEffect(exoPlayer) {
+                    onDispose { exoPlayer.release() }
+                }
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            useController = true
+                        }
+                    },
+                    update = { view ->
+                        if (view.player !== exoPlayer) view.player = exoPlayer
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
@@ -291,6 +401,33 @@ fun ProductCard(
                         tint = if (isWishlisted) ErrorRed else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
+                }
+                if (product.hasVideo() && product.stock > 0 && product.isAvailable) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Video",
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = if (isTelugu) "వీడియో" else "Video",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
                 if (product.stock <= 0 || !product.isAvailable) {
                     Surface(
