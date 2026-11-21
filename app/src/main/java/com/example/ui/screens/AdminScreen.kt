@@ -237,6 +237,7 @@ fun AdminPanelScreen(
                 3 -> AdminOrdersPaymentsTab(
                     orders = orders,
                     payments = payments,
+                    products = products,
                     onUpdateOrderStatus = onUpdateOrderStatus,
                     onProcessRefund = onProcessRefund
                 )

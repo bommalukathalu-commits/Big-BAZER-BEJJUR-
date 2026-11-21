@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,8 +50,6 @@ import androidx.compose.ui.unit.dp
 import com.example.data.model.AuditLog
 import com.example.data.model.BackupRecord
 import com.example.data.model.DeletedProduct
-import com.example.data.model.Order
-import com.example.data.model.PaymentRecord
 import com.example.data.model.ShopSettings
 import com.example.data.model.SupportTicket
 import com.example.data.model.UserProfile
@@ -60,101 +57,6 @@ import com.example.data.repository.CloudDiagnosticsSummary
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
-
-@Composable
-fun AdminOrdersPaymentsTab(
-    orders: List<Order>,
-    payments: List<PaymentRecord>,
-    onUpdateOrderStatus: (Order, String, String, String) -> Unit,
-    onProcessRefund: (PaymentRecord) -> Unit
-) {
-    var editingOrder by remember { mutableStateOf<Order?>(null) }
-
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("All Customer Orders (${orders.size})", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(orders, key = { it.id }) { order ->
-            Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${order.orderNumber} • ₹${order.totalAmount.toInt()}", fontWeight = FontWeight.Bold)
-                        Text(order.orderStatus, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                    Text("${order.customerName} (${order.customerPhone}) — ${order.village}, ${order.mandal}", style = MaterialTheme.typography.bodySmall)
-                    Text("Payment: ${order.paymentMethod} • ${order.paymentStatus}", style = MaterialTheme.typography.labelSmall)
-                    Button(onClick = { editingOrder = order }) {
-                        Text("Update Status / Payment")
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(Modifier.height(8.dp))
-            Text("Payments & Refunds (${payments.size})", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(payments, key = { it.id }) { pay ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("${pay.method} • ₹${pay.amount.toInt()} (${pay.status})", fontWeight = FontWeight.SemiBold)
-                        if (pay.transactionRef.isNotBlank()) Text("Ref: ${pay.transactionRef}", style = MaterialTheme.typography.labelSmall)
-                        if (pay.failureReason.isNotBlank()) Text("Reason: ${pay.failureReason}", style = MaterialTheme.typography.labelSmall, color = ErrorRed)
-                    }
-                    if (pay.status == "SUCCESS") {
-                        OutlinedButton(onClick = { onProcessRefund(pay) }) { Text("Refund") }
-                    }
-                }
-            }
-        }
-    }
-
-    if (editingOrder != null) {
-        val ord = editingOrder!!
-        val statuses = listOf("NEW", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED")
-        val payStatuses = listOf("PENDING", "PAID", "FAILED", "REFUNDED")
-        var selectedStatus by remember { mutableStateOf(ord.orderStatus) }
-        var selectedPayStatus by remember { mutableStateOf(ord.paymentStatus) }
-        var note by remember { mutableStateOf(ord.trackingNote) }
-
-        AlertDialog(
-            onDismissRequest = { editingOrder = null },
-            title = { Text("Manage ${ord.orderNumber}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Order Status", fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(statuses) { st ->
-                            FilterChip(selected = selectedStatus == st, onClick = { selectedStatus = st }, label = { Text(st) })
-                        }
-                    }
-                    Text("Payment Status", fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(payStatuses) { ps ->
-                            FilterChip(selected = selectedPayStatus == ps, onClick = { selectedPayStatus = ps }, label = { Text(ps) })
-                        }
-                    }
-                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Tracking Note") }, modifier = Modifier.fillMaxWidth())
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    onUpdateOrderStatus(ord, selectedStatus, selectedPayStatus, note)
-                    editingOrder = null
-                }) { Text("Save Update") }
-            },
-            dismissButton = { TextButton(onClick = { editingOrder = null }) { Text("Cancel") } }
-        )
-    }
-}
 
 @Composable
 fun AdminCustomersSupportTab(
