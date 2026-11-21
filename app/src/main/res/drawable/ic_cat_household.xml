@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Cozy House + Cleaning Sparkle -->
+    <path
+        android:fillColor="#FDE68A"
+        android:pathData="M11,22h26v18H11z" />
+    <!-- Roof -->
+    <path
+        android:fillColor="#EA580C"
+        android:pathData="M6,23L24,8l18,15l-3,3L24,13.5L9,26z" />
+    <!-- Door -->
+    <path
+        android:fillColor="#7C2D12"
+        android:pathData="M20,28h8v12h-8z" />
+    <!-- Window -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M13.5,24h5v5h-5z" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M29.5,24h5v5h-5z" />
+    <!-- Sparkle -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M39,8l1,2.5l2.5,1l-2.5,1L39,15l-1,-2.5l-2.5,-1l2.5,-1z" />
+</vector>

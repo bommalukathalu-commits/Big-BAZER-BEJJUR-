@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.graphics.Bitmap
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.example.R
 import com.example.data.model.Product
 import com.example.data.util.ImageProcessor
 import com.example.ui.theme.ErrorRed
@@ -178,6 +180,53 @@ fun categoryIconFor(iconKey: String): ImageVector = when (iconKey.lowercase()) {
     "decor" -> Icons.Default.Weekend
     "cleaning" -> Icons.Default.CleaningServices
     else -> Icons.Default.Category
+}
+
+@DrawableRes
+fun categoryIllustrationRes(categoryId: String, iconKey: String): Int {
+    val idLower = categoryId.lowercase()
+    val keyLower = iconKey.lowercase()
+    return when {
+        keyLower == "toys" || idLower.contains("toy") -> R.drawable.ic_cat_toys
+        keyLower == "gift" || idLower.contains("gift") -> R.drawable.ic_cat_gifts
+        keyLower == "diamond" || idLower.contains("ladies") -> R.drawable.ic_cat_ladies
+        keyLower == "watch" || idLower.contains("mens") -> R.drawable.ic_cat_mens
+        keyLower == "child" || idLower.contains("kid") -> R.drawable.ic_cat_kids
+        keyLower == "store" || idLower.contains("general") -> R.drawable.ic_cat_general
+        keyLower == "bottle" || idLower.contains("bottle") -> R.drawable.ic_cat_bottles
+        keyLower == "photo" || idLower.contains("frame") -> R.drawable.ic_cat_frames
+        keyLower == "sparkles" || idLower.contains("bangle") -> R.drawable.ic_cat_bangles
+        keyLower == "home" || idLower.contains("household") -> R.drawable.ic_cat_household
+        keyLower == "bucket" || idLower.contains("plastic") -> R.drawable.ic_cat_plastic
+        keyLower == "kitchen" || idLower.contains("kitchen") -> R.drawable.ic_cat_kitchen
+        keyLower == "beauty" || idLower.contains("beauty") -> R.drawable.ic_cat_beauty
+        keyLower == "school" || idLower.contains("school") -> R.drawable.ic_cat_school
+        keyLower == "decor" || idLower.contains("decor") -> R.drawable.ic_cat_decor
+        else -> R.drawable.ic_cat_default
+    }
+}
+
+fun categoryAccentColor(categoryId: String, iconKey: String): Color {
+    val idLower = categoryId.lowercase()
+    val keyLower = iconKey.lowercase()
+    return when {
+        keyLower == "toys" || idLower.contains("toy") -> Color(0xFFEF4444)
+        keyLower == "gift" || idLower.contains("gift") -> Color(0xFFE11D48)
+        keyLower == "diamond" || idLower.contains("ladies") -> Color(0xFFEC4899)
+        keyLower == "watch" || idLower.contains("mens") -> Color(0xFF6366F1)
+        keyLower == "child" || idLower.contains("kid") -> Color(0xFF0284C7)
+        keyLower == "store" || idLower.contains("general") -> Color(0xFFEA580C)
+        keyLower == "bottle" || idLower.contains("bottle") -> Color(0xFF0D9488)
+        keyLower == "photo" || idLower.contains("frame") -> Color(0xFFB45309)
+        keyLower == "sparkles" || idLower.contains("bangle") -> Color(0xFFD97706)
+        keyLower == "home" || idLower.contains("household") -> Color(0xFF059669)
+        keyLower == "bucket" || idLower.contains("plastic") -> Color(0xFF2563EB)
+        keyLower == "kitchen" || idLower.contains("kitchen") -> Color(0xFFDC2626)
+        keyLower == "beauty" || idLower.contains("beauty") -> Color(0xFFDB2777)
+        keyLower == "school" || idLower.contains("school") -> Color(0xFF4F46E5)
+        keyLower == "decor" || idLower.contains("decor") -> Color(0xFF16A34A)
+        else -> Color(0xFFF97316)
+    }
 }
 
 @Composable

@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Leather Watch Strap Top & Bottom -->
+    <path
+        android:fillColor="#92400E"
+        android:pathData="M18,6h12v10H18z" />
+    <path
+        android:fillColor="#92400E"
+        android:pathData="M18,32h12v10H18z" />
+    <!-- Watch Case Outer -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M24,11a13,13 0 1,0 0,26a13,13 0 1,0 0,-26z" />
+    <!-- Gold Bezel -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M24,13a11,11 0 1,0 0,22a11,11 0 1,0 0,-22z" />
+    <!-- Watch Dial -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M24,15a9,9 0 1,0 0,18a9,9 0 1,0 0,-18z" />
+    <!-- Watch Crown -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M36.5,22h3v4h-3z" />
+    <!-- Watch Hands -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M24,18v6l4,3"
+        android:strokeWidth="2.2"
+        android:strokeColor="#1E293B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Center Dot -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M24,22.5a1.5,1.5 0 1,0 0,3a1.5,1.5 0 1,0 0,-3z" />
+</vector>

@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Stainless Steel Cooking Pot & Lid -->
+    <!-- Lid Knob -->
+    <path
+        android:fillColor="#DC2626"
+        android:pathData="M20,10h8c1.1,0 2,0.9 2,2v2H18v-2C18,10.9 18.9,10 20,10z" />
+    <!-- Lid -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M11,18c0,-2.8 5.8,-5 13,-5s13,2.2 13,5H11z" />
+    <!-- Handles -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M6,22h5v4H6c-1.1,0 -2,-0.9 -2,-2S4.9,22 6,22z" />
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M37,22h5c1.1,0 2,0.9 2,2s-0.9,2 -2,2h-5V22z" />
+    <!-- Pot Body -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M11,20h26v14c0,2.8 -2.2,5 -5,5H16c-2.8,0 -5,-2.2 -5,-5V20z" />
+    <!-- Steel Shine -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M15,22h4v14h-4z" />
+    <!-- Red Accent Stripe -->
+    <path
+        android:fillColor="#DC2626"
+        android:pathData="M11,31h26v2.5H11z" />
+</vector>

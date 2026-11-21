@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Lipstick & Perfume Bottle -->
+    <!-- Pink Lipstick Base -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M10,25h10v15c0,1.1 -0.9,2 -2,2h-6c-1.1,0 -2,-0.9 -2,-2V25z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M11,20h8v5h-8z" />
+    <!-- Lipstick tip -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M12,11l6,-3v12h-6z" />
+    <!-- Perfume Bottle right -->
+    <path
+        android:fillColor="#F43F5E"
+        android:pathData="M24,20c0,-1.7 1.3,-3 3,-3h10c1.7,0 3,1.3 3,3v18c0,2.2 -1.8,4 -4,4h-8c-2.2,0 -4,-1.8 -4,-4V20z" />
+    <!-- Perfume Neck & Cap -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M29,12h6v5h-6z" />
+    <path
+        android:fillColor="#FDA4AF"
+        android:pathData="M27,7h10v5h-10z" />
+    <!-- Perfume Label -->
+    <path
+        android:fillColor="#FFF1F2"
+        android:pathData="M27,25h10v9H27z" />
+</vector>

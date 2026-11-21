@@ -102,7 +102,14 @@ data class AppStrings(
     val currentVersionLabel: String,
     val askOnWhatsapp: String,
     val reorderItems: String,
-    val freeDeliveryUnlocked: String
+    val freeDeliveryUnlocked: String,
+    val flashDeals: String,
+    val quickPicksLabel: String,
+    val bejjurPromiseTitle: String,
+    val bejjurPromiseSubtitle: String,
+    val chatStoreHelp: String,
+    val myWishlistShortcut: String,
+    val myOrdersShortcut: String
 )
 
 fun getStrings(lang: AppLanguage): AppStrings = if (lang == AppLanguage.TELUGU) TeluguStrings else EnglishStrings
@@ -199,7 +206,7 @@ private val EnglishStrings = AppStrings(
     moreLikeThis = "More Products You May Like",
     checkForUpdates = "Check for App Updates",
     updateAvailableTitle = "New Update Available",
-    updateAvailableBody = "A newer version of BIG BAZER BEJJUR is ready with new features & improvements.",
+    updateAvailableBody = "A newer version of BIG BAZER BEJJUR is ready! Tap Update Now to install right over your existing app — no need to delete the app, your cart & orders stay safe.",
     updateNow = "Update Now",
     later = "Later",
     upToDateMessage = "You are already using the latest version!",
@@ -207,7 +214,14 @@ private val EnglishStrings = AppStrings(
     currentVersionLabel = "Current Version",
     askOnWhatsapp = "Ask on WhatsApp",
     reorderItems = "Reorder",
-    freeDeliveryUnlocked = "Free delivery unlocked for Bejjur!"
+    freeDeliveryUnlocked = "Free delivery unlocked for Bejjur!",
+    flashDeals = "Today's Top Discounts",
+    quickPicksLabel = "Quick Picks",
+    bejjurPromiseTitle = "Bejjur Store Promise",
+    bejjurPromiseSubtitle = "Same-Day Local Delivery • Cash on Delivery & UPI • Easy Store Help",
+    chatStoreHelp = "Chat with Store on WhatsApp",
+    myWishlistShortcut = "Wishlist",
+    myOrdersShortcut = "Track Orders"
 )
 
 private val TeluguStrings = AppStrings(
@@ -302,7 +316,7 @@ private val TeluguStrings = AppStrings(
     moreLikeThis = "మీకు నచ్చే మరిన్ని వస్తువులు",
     checkForUpdates = "యాప్ అప్‌డేట్ చెక్ చేయండి",
     updateAvailableTitle = "కొత్త అప్‌డేట్ సిద్ధంగా ఉంది!",
-    updateAvailableBody = "బిగ్ బజార్ బెజ్జూర్ కొత్త వెర్షన్ మరియు మెరుగైన ఫీచర్లు అందుబాటులో ఉన్నాయి.",
+    updateAvailableBody = "బిగ్ బజార్ బెజ్జూర్ కొత్త వెర్షన్ సిద్ధంగా ఉంది! పాత యాప్‌ను డిలీట్ చేయాల్సిన అవసరం లేదు — 'ఇప్పుడే అప్‌డేట్ చేయండి' నొక్కితే నేరుగా ఇందులోనే అప్‌డేట్ అవుతుంది, మీ కార్ట్ & ఆర్డర్లు సేఫ్‌గా ఉంటాయి.",
     updateNow = "ఇప్పుడే అప్‌డేట్ చేయండి",
     later = "తర్వాత",
     upToDateMessage = "మీరు ఇప్పటికే లేటెస్ట్ వెర్షన్ వాడుతున్నారు!",
@@ -310,5 +324,12 @@ private val TeluguStrings = AppStrings(
     currentVersionLabel = "ప్రస్తుత వెర్షన్",
     askOnWhatsapp = "WhatsApp లో అడగండి",
     reorderItems = "మళ్ళీ ఆర్డర్",
-    freeDeliveryUnlocked = "బెజ్జూర్ లో ఉచిత డెలివరీ అన్‌లాక్ అయింది!"
+    freeDeliveryUnlocked = "బెజ్జూర్ లో ఉచిత డెలివరీ అన్‌లాక్ అయింది!",
+    flashDeals = "ఈ రోజు భారీ డిస్కౌంట్లు",
+    quickPicksLabel = "త్వరిత శోధన",
+    bejjurPromiseTitle = "బిగ్ బజార్ బెజ్జూర్ నమ్మకం",
+    bejjurPromiseSubtitle = "బెజ్జూర్‌లో అదే రోజు డెలివరీ • COD & UPI • తక్షణ సహాయం",
+    chatStoreHelp = "WhatsApp లో షాప్‌ని అడగండి",
+    myWishlistShortcut = "విష్‌లిస్ట్",
+    myOrdersShortcut = "ఆర్డర్లు"
 )

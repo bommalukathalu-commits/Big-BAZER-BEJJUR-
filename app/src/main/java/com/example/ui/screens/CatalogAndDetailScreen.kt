@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -79,6 +81,7 @@ import com.example.data.model.WishlistItem
 import com.example.data.util.AppLanguage
 import com.example.ui.components.CloudProductImage
 import com.example.ui.components.ProductCard
+import com.example.ui.components.categoryIllustrationRes
 import com.example.ui.i18n.getStrings
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.SuccessGreen
@@ -155,6 +158,13 @@ fun CatalogScreen(
                     FilterChip(
                         selected = selectedCategoryId == cat.id,
                         onClick = { onCategorySelect(if (selectedCategoryId == cat.id) null else cat.id) },
+                        leadingIcon = {
+                            Image(
+                                painter = painterResource(id = categoryIllustrationRes(cat.id, cat.iconKey)),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
                         label = { Text(cat.localizedName(isTelugu)) }
                     )
                 }

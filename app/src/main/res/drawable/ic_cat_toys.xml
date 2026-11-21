@@ -1,0 +1,47 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Colorful Teddy Bear + Toy Car / Blocks vibe: Toy Car & Building Block -->
+    <!-- Yellow building block top-right -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M28,8h12c1.1,0 2,0.9 2,2v12c0,1.1 -0.9,2 -2,2H28c-1.1,0 -2,-0.9 -2,-2V10C26,8.9 26.9,8 28,8z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M31,13h6v6h-6z" />
+    <!-- Blue star on block -->
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M34,11l1.1,2.3l2.5,0.4l-1.8,1.8l0.4,2.5L34,16.8l-2.2,1.2l0.4,-2.5l-1.8,-1.8l2.5,-0.4z" />
+    <!-- Red Toy Car body -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M11,22c0.8,-3.2 3.3,-5 6.8,-5h8.4c3.5,0 6,1.8 6.8,5l3.2,1c2.2,0.7 3.8,2.6 3.8,5v4c0,1.7 -1.3,3 -3,3H9c-1.7,0 -3,-1.3 -3,-3v-4c0,-2.6 1.8,-4.7 4.2,-5.2L11,22z" />
+    <!-- Car windows -->
+    <path
+        android:fillColor="#DBEAFE"
+        android:pathData="M14.5,19.5h6.5v4.5h-8z" />
+    <path
+        android:fillColor="#BFDBFE"
+        android:pathData="M23,19.5h6.2l1.5,4.5H23z" />
+    <!-- Headlight -->
+    <path
+        android:fillColor="#FDE047"
+        android:pathData="M36.5,27h2.5c0.6,0 1,0.4 1,1v2c0,0.6 -0.4,1 -1,1h-2.5z" />
+    <!-- Wheels outer -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M14,30a5,5 0 1,0 0,10a5,5 0 1,0 0,-10z" />
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M33,30a5,5 0 1,0 0,10a5,5 0 1,0 0,-10z" />
+    <!-- Wheel rims -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M14,32.5a2.5,2.5 0 1,0 0,5a2.5,2.5 0 1,0 0,-5z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M33,32.5a2.5,2.5 0 1,0 0,5a2.5,2.5 0 1,0 0,-5z" />
+</vector>

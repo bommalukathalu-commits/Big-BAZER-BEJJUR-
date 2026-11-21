@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Kids Cute Backpack -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,13v-2c0,-2.8 2.2,-5 5,-5s5,2.2 5,5v2"
+        android:strokeWidth="2.8"
+        android:strokeColor="#0284C7"
+        android:strokeLineCap="round" />
+    <!-- Main Bag -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M11,19c0,-5 4,-9 9,-9h8c5,0 9,4 9,9v18c0,2.2 -1.8,4 -4,4H15c-2.2,0 -4,-1.8 -4,-4V19z" />
+    <!-- Front Pocket -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M15,27h18c1.1,0 2,0.9 2,2v8c0,1.1 -0.9,2 -2,2H15c-1.1,0 -2,-0.9 -2,-2v-8C13,27.9 13.9,27 15,27z" />
+    <!-- Yellow Smiling Star Badge -->
+    <path
+        android:fillColor="#FACC15"
+        android:pathData="M24,14l1.9,3.8l4.2,0.6l-3,3l0.7,4.2L24,23.6l-3.8,2l0.7,-4.2l-3,-3l4.2,-0.6z" />
+    <!-- Side Pockets -->
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M8,28h3v10H8c-1.1,0 -2,-0.9 -2,-2v-6C6,28.9 6.9,28 8,28z" />
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M37,28h3c1.1,0 2,0.9 2,2v6c0,1.1 -0.9,2 -2,2h-3V28z" />
+</vector>

@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -47,7 +48,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -126,6 +130,77 @@ fun BigBazerAppRoot(
             .build()
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val strings = getStrings(language)
+    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (AppUpdateChecker.shouldAutoCheckNow()) {
+            when (val res = AppUpdateChecker.checkForUpdate()) {
+                is UpdateCheckResult.UpdateAvailable -> {
+                    availableUpdate = res.info
+                    showUpdateDialog = true
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && AppUpdateChecker.shouldAutoCheckNow()) {
+                scope.launch {
+                    when (val res = AppUpdateChecker.checkForUpdate()) {
+                        is UpdateCheckResult.UpdateAvailable -> {
+                            val isNewerTag = availableUpdate?.buildNumber != res.info.buildNumber
+                            availableUpdate = res.info
+                            if (isNewerTag) showUpdateDialog = true
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (showUpdateDialog && availableUpdate != null) {
+        val update = availableUpdate!!
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text("${strings.updateAvailableTitle} (${update.versionTag})") },
+            text = {
+                Text(
+                    buildString {
+                        append(strings.updateAvailableBody)
+                        append("\n\n${strings.currentVersionLabel}: ${AppUpdateChecker.currentVersionLabel()}")
+                        if (update.releaseNotes.isNotBlank()) {
+                            append("\n\n${update.releaseNotes.take(240)}")
+                        }
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateDialog = false
+                        AppUpdateChecker.openUpdateDownload(context, update)
+                    },
+                    modifier = Modifier.testTag("update_now_dialog_btn")
+                ) {
+                    Text(strings.updateNow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text(strings.later)
+                }
+            }
+        )
+    }
+
     CompositionLocalProvider(LocalAppImageLoader provides imageLoader) {
         val user = currentUser
         if (user == null) {
@@ -140,6 +215,11 @@ fun BigBazerAppRoot(
                     currentUserId = user.uid,
                     language = language,
                     themeMode = themeMode,
+                    availableUpdate = availableUpdate,
+                    onUpdateFound = { info, openDialog ->
+                        availableUpdate = info
+                        if (openDialog) showUpdateDialog = true
+                    },
                     onLanguageChange = { lang -> scope.launch { prefsManager.setLanguage(lang) } },
                     onThemeChange = { mode -> scope.launch { prefsManager.setThemeMode(mode) } },
                     onSignOut = {
@@ -157,6 +237,8 @@ private fun AuthenticatedStoreApp(
     currentUserId: String,
     language: AppLanguage,
     themeMode: AppThemeMode,
+    availableUpdate: AppUpdateInfo?,
+    onUpdateFound: (AppUpdateInfo?, Boolean) -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
     onThemeChange: (AppThemeMode) -> Unit,
     onSignOut: () -> Unit
@@ -226,19 +308,7 @@ private fun AuthenticatedStoreApp(
         vm.setAdminConsoleOpen(overlay == OverlayRoute.AdminPanel)
     }
     var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
-    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        when (val res = AppUpdateChecker.checkForUpdate()) {
-            is UpdateCheckResult.UpdateAvailable -> {
-                availableUpdate = res.info
-                showUpdateDialog = true
-            }
-            else -> Unit
-        }
-    }
 
     val openAppShareDialog = {
         val storeTitle = shopSettings.shopName.ifBlank { "BIG BAZER BEJJUR" }
@@ -258,41 +328,6 @@ private fun AuthenticatedStoreApp(
             target = shareTarget!!,
             language = language,
             onDismiss = { shareTarget = null }
-        )
-    }
-
-    if (showUpdateDialog && availableUpdate != null) {
-        val update = availableUpdate!!
-        AlertDialog(
-            onDismissRequest = { showUpdateDialog = false },
-            title = { Text("${strings.updateAvailableTitle} (${update.versionTag})") },
-            text = {
-                Text(
-                    buildString {
-                        append(strings.updateAvailableBody)
-                        append("\n\n${strings.currentVersionLabel}: ${AppUpdateChecker.currentVersionLabel()}")
-                        if (update.releaseNotes.isNotBlank()) {
-                            append("\n\n${update.releaseNotes.take(240)}")
-                        }
-                    }
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showUpdateDialog = false
-                        AppUpdateChecker.openUpdateDownload(context, update)
-                    },
-                    modifier = Modifier.testTag("update_now_dialog_btn")
-                ) {
-                    Text(strings.updateNow)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
-                    Text(strings.later)
-                }
-            }
         )
     }
 
@@ -544,7 +579,16 @@ private fun AuthenticatedStoreApp(
                         onUpdateApp = {
                             val upd = availableUpdate
                             if (upd != null) AppUpdateChecker.openUpdateDownload(context, upd)
-                        }
+                        },
+                        shopSettings = shopSettings,
+                        onQuickTagClick = { term ->
+                            vm.selectCategory(null)
+                            vm.setMaxPriceFilter(null)
+                            vm.setSearchQuery(term)
+                            currentTab = MainTab.CATALOG
+                        },
+                        onOpenOrders = { currentTab = MainTab.ORDERS },
+                        onOpenWishlist = { currentTab = MainTab.ACCOUNT }
                     )
                     MainTab.CATALOG -> CatalogScreen(
                         language = language,
@@ -617,11 +661,10 @@ private fun AuthenticatedStoreApp(
                                 scope.launch {
                                     when (val res = AppUpdateChecker.checkForUpdate()) {
                                         is UpdateCheckResult.UpdateAvailable -> {
-                                            availableUpdate = res.info
-                                            showUpdateDialog = true
+                                            onUpdateFound(res.info, true)
                                         }
                                         UpdateCheckResult.UpToDate -> {
-                                            availableUpdate = null
+                                            onUpdateFound(null, false)
                                             vm.showMessage(strings.upToDateMessage)
                                         }
                                         is UpdateCheckResult.Error -> {

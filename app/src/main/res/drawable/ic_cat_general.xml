@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- General Store Shopfront -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M9,20h30v20H9z" />
+    <!-- Awning Base -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M6,11h36l2,9c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3c0,1.7 -1.3,3 -3,3s-3,-1.3 -3,-3L6,11z" />
+    <!-- White awning stripes -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,11h5v9h-5zM26,11h5v9h-5z" />
+    <!-- Shop Door & Window -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M13,26h10v9H13z" />
+    <path
+        android:fillColor="#16A34A"
+        android:pathData="M27,26h8v14h-8z" />
+    <!-- Ground line -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M6,40h36v2.5H6z" />
+</vector>
